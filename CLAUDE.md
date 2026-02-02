@@ -155,6 +155,49 @@ The following interfaces are shared between departments. Changes require Program
 - Must implement tools defined in the specification
 - Planner API endpoints serve as the data source
 
+## Validation Gates
+
+This project uses automated validation gates to catch issues before they reach main. Every agent must respect these gates.
+
+### Pre-Commit (Husky + lint-staged)
+Runs on staged files only:
+- `prettier --write` (auto-format)
+- `eslint --fix` (auto-fix lintable issues)
+- `tsc --noEmit` on affected packages (type-check)
+
+### Pre-Push
+Runs on the full affected package set:
+- `turbo lint` (full lint pass)
+- `turbo type-check` (full type-check)
+- `turbo test` (run all tests)
+- `turbo build` (verify everything compiles)
+
+If any gate fails, the push is rejected. Fix the issue and try again.
+
+### CODEOWNERS
+The `CODEOWNERS` file maps paths to responsible departments:
+```
+packages/web/          @openfactory/frontend
+packages/api/          @openfactory/backend
+packages/shared/       @openfactory/backend @openfactory/frontend
+packages/mcp-server/   @openfactory/platform
+docker/                @openfactory/platform
+docs/research/         @openfactory/research
+docs/adrs/             @openfactory/research
+```
+
+Changes to `packages/shared/` or `CLAUDE.md` require Program Director review.
+
+### CI Pipeline (GitHub Actions)
+Every push and PR triggers:
+1. Install dependencies (`pnpm install --frozen-lockfile`)
+2. Lint (`turbo lint`)
+3. Type-check (`turbo type-check`)
+4. Test (`turbo test`)
+5. Build (`turbo build`)
+
+All checks must pass before merge to main.
+
 ## Open Source Standards
 
 This is an open-source project. All code must meet public-facing quality standards:
