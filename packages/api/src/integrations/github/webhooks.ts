@@ -66,7 +66,7 @@ export async function registerWebhookRoute(
   app.post(
     "/api/integrations/github/webhooks",
     {
-      config: { rawBody: true },
+      config: { rawBody: true } as Record<string, unknown>,
     },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const signature = request.headers["x-hub-signature-256"] as
