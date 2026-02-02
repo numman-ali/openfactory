@@ -11,6 +11,11 @@ import authRoutes from "./routes/auth.js";
 import orgRoutes from "./routes/organizations.js";
 import projectRoutes from "./routes/projects.js";
 import artifactRoutes from "./routes/artifacts.js";
+import refineryRoutes from "./routes/refinery.js";
+import foundryRoutes from "./routes/foundry.js";
+import plannerRoutes from "./routes/planner.js";
+import validatorRoutes from "./routes/validator.js";
+import graphRoutes from "./routes/graph.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -38,6 +43,11 @@ export async function buildApp() {
   await app.register(orgRoutes, { prefix: "/api/organizations" });
   await app.register(projectRoutes, { prefix: "/api" });
   await app.register(artifactRoutes, { prefix: "/api" });
+  await app.register(refineryRoutes, { prefix: "/api/projects" });
+  await app.register(foundryRoutes, { prefix: "/api/projects" });
+  await app.register(plannerRoutes, { prefix: "/api/projects" });
+  await app.register(validatorRoutes, { prefix: "/api/projects" });
+  await app.register(graphRoutes, { prefix: "/api/projects" });
 
   return app;
 }
