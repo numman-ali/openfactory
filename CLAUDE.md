@@ -4,7 +4,7 @@
 
 OpenFactory is an open-source AI-native SDLC orchestration platform. It guides software teams through a structured pipeline: Requirements (Refinery) -> Architecture (Foundry) -> Tasks (Planner) -> Feedback (Validator). A knowledge graph connects all artifacts so changes propagate automatically. AI agents assist at every stage with human-in-the-loop approval.
 
-The full specification lives at `docs/specs/openfactory-specification.md`. 
+The full specification lives at `docs/specs/openfactory-specification.md`.
 
 ## Organizational Structure
 
