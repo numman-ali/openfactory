@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
-import { pgTable, uuid, text, jsonb, timestamp, integer, unique, index } from "drizzle-orm/pg-core";
+import { pgTable, uuid, text, jsonb, timestamp, integer, unique, index, customType } from "drizzle-orm/pg-core";
 import { organizations } from "./organizations";
 import { users } from "./users";
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType() {
+    return "bytea";
+  },
+});
 
 export const projects = pgTable("projects", {
   id: uuid().primaryKey().defaultRandom(),
@@ -49,6 +55,7 @@ export const documents = pgTable("documents", {
   createdBy: uuid("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  yjsState: bytea("yjs_state"),
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 }, (table) => [
   unique().on(table.projectId, table.type, table.slug),

@@ -7,6 +7,8 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "start:hocuspocus": "node dist/hocuspocus.js",
+    "dev:hocuspocus": "tsx watch src/hocuspocus.ts",
     "type-check": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
@@ -36,7 +38,12 @@
     "ai": "^4.0.0",
     "@ai-sdk/openai": "^1.0.0",
     "@ai-sdk/anthropic": "^1.0.0",
-    "ollama-ai-provider": "^1.0.0"
+    "ollama-ai-provider": "^1.0.0",
+    "@hocuspocus/server": "^2.13.0",
+    "@hocuspocus/extension-database": "^2.13.0",
+    "@hocuspocus/extension-redis": "^2.13.0",
+    "@hocuspocus/extension-logger": "^2.13.0",
+    "yjs": "^13.6.0"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

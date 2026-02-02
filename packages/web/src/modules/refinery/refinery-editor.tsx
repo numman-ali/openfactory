@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import {
   FileText,
   Download,
@@ -23,7 +23,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RichEditor } from "@/components/editor";
-import { ChatPanel, type ChatMessage } from "@/components/agent";
+import { ChatPanel } from "@/components/agent";
 import {
   DocumentTree,
   type DocumentTreeItem,
@@ -86,40 +86,23 @@ const PLACEHOLDER_DOCS: DocumentTreeItem[] = [
   },
 ];
 
-export function RefineryEditor() {
+interface RefineryEditorProps {
+  /** Project ID for API calls and agent chat. */
+  projectId?: string;
+  /** Auth token for collaborative editing. When provided, enables real-time collaboration. */
+  authToken?: string;
+  /** Display name for the current user in collaboration cursors. */
+  userName?: string;
+}
+
+export function RefineryEditor({ projectId, authToken, userName }: RefineryEditorProps = {}) {
   const [documents] = useState<DocumentTreeItem[]>(PLACEHOLDER_DOCS);
   const [selectedDocId, setSelectedDocId] = useState<string | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [showChat, setShowChat] = useState(false);
   const [versions] = useState<VersionInfo[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<string | null>(null);
 
   const selectedDoc = documents.find((d) => d.id === selectedDocId) ?? null;
-
-  const handleSendMessage = useCallback(
-    (content: string) => {
-      const userMsg: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "user",
-        content,
-        timestamp: new Date(),
-      };
-      setChatMessages((prev) => [...prev, userMsg]);
-    },
-    []
-  );
-
-  const handleActionClick = useCallback((actionId: string) => {
-    const action = REFINERY_AGENT_ACTIONS.find((a) => a.id === actionId);
-    if (!action) return;
-    const userMsg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: action.label,
-      timestamp: new Date(),
-    };
-    setChatMessages((prev) => [...prev, userMsg]);
-  }, []);
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
@@ -243,6 +226,10 @@ export function RefineryEditor() {
                   showToolbar
                   showBubbleMenu
                   showWordCount
+                  documentId={selectedDoc.id}
+                  collaborative={!!authToken}
+                  authToken={authToken}
+                  userName={userName}
                 />
               </div>
             </div>
@@ -265,10 +252,10 @@ export function RefineryEditor() {
       {/* Agent Chat Panel */}
       {showChat && (
         <ChatPanel
+          projectId={projectId}
+          agentType="refinery"
           title="Refinery Agent"
-          messages={chatMessages}
-          onSendMessage={handleSendMessage}
-          onActionClick={handleActionClick}
+          contextDocumentId={selectedDocId ?? undefined}
           className="w-80"
           actions={REFINERY_AGENT_ACTIONS}
         />

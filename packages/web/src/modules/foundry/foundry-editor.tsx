@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from "react";
-import { useState, useCallback } from "react";
+import { useState } from "react";
 import {
   FileCode,
   Download,
@@ -26,7 +26,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RichEditor } from "@/components/editor";
-import { ChatPanel, type ChatMessage } from "@/components/agent";
+import { ChatPanel } from "@/components/agent";
 import {
   BlueprintTree,
   type BlueprintTreeItem,
@@ -86,12 +86,20 @@ const FOUNDRY_AGENT_ACTIONS = [
   },
 ];
 
-export function FoundryEditor() {
+interface FoundryEditorProps {
+  /** Project ID for API calls and agent chat. */
+  projectId?: string;
+  /** Auth token for collaborative editing. When provided, enables real-time collaboration. */
+  authToken?: string;
+  /** Display name for the current user in collaboration cursors. */
+  userName?: string;
+}
+
+export function FoundryEditor({ projectId, authToken, userName }: FoundryEditorProps = {}) {
   const [blueprints] = useState<BlueprintTreeItem[]>([]);
   const [selectedBlueprintId, setSelectedBlueprintId] = useState<string | null>(
     null
   );
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [showChat, setShowChat] = useState(false);
   const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [driftAlerts] = useState<DriftAlert[]>([]);
@@ -101,27 +109,11 @@ export function FoundryEditor() {
   const selectedBlueprint =
     blueprints.find((b) => b.id === selectedBlueprintId) ?? null;
 
-  const handleSendMessage = useCallback((content: string) => {
-    const msg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content,
-      timestamp: new Date(),
-    };
-    setChatMessages((prev) => [...prev, msg]);
-  }, []);
-
-  const handleActionClick = useCallback((actionId: string) => {
-    const action = FOUNDRY_AGENT_ACTIONS.find((a) => a.id === actionId);
-    if (!action) return;
-    const msg: ChatMessage = {
-      id: crypto.randomUUID(),
-      role: "user",
-      content: action.label,
-      timestamp: new Date(),
-    };
-    setChatMessages((prev) => [...prev, msg]);
-  }, []);
+  const handleActionClick = (actionId: string) => {
+    if (actionId === "drift") {
+      setShowChat(true);
+    }
+  };
 
   const openDriftAlerts = driftAlerts.filter((a) => a.status === "open");
 
@@ -277,6 +269,10 @@ export function FoundryEditor() {
                     showToolbar
                     showBubbleMenu
                     showWordCount
+                    documentId={selectedBlueprint.id}
+                    collaborative={!!authToken}
+                    authToken={authToken}
+                    userName={userName}
                   />
                 </div>
               </div>
@@ -350,10 +346,10 @@ export function FoundryEditor() {
       {/* Agent Chat Panel */}
       {showChat && (
         <ChatPanel
+          projectId={projectId}
+          agentType="foundry"
           title="Foundry Agent"
-          messages={chatMessages}
-          onSendMessage={handleSendMessage}
-          onActionClick={handleActionClick}
+          contextDocumentId={selectedBlueprintId ?? undefined}
           className="w-80"
           actions={FOUNDRY_AGENT_ACTIONS}
         />
