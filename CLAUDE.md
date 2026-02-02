@@ -122,10 +122,13 @@ openfactory/
 - **Structured output**: Agents produce structured edit suggestions, not raw text patches
 - **Context assembly**: Agents receive assembled context from the knowledge graph, not raw DB queries
 
-### Git Conventions
-- Branch per feature/task: `{department}/{short-description}`
-- Commit messages: Conventional Commits format (`feat:`, `fix:`, `chore:`, `docs:`)
-- No direct commits to `main` -- all work goes through feature branches
+### Git Workflow
+- **Branch per feature/task**: `{department}/{short-description}` (e.g., `research/tech-validation`, `backend/auth-api`)
+- **Commit messages**: Conventional Commits format (`feat:`, `fix:`, `chore:`, `docs:`)
+- **Commit often**: Each meaningful unit of work gets its own commit. Don't batch unrelated changes.
+- **No direct commits to `main`**: All work goes through feature branches. Department heads merge to main after Program Director review.
+- **All agents must commit their work**: When you complete a task or reach a stable checkpoint, stage and commit your changes on your branch. Use `git add` with specific file paths -- never `git add -A`.
+- **Co-author tag**: All commits must include `Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>`
 
 ## Cross-Department Contracts
 
@@ -151,6 +154,19 @@ The following interfaces are shared between departments. Changes require Program
 - MCP server in `packages/mcp-server/`
 - Must implement tools defined in the specification
 - Planner API endpoints serve as the data source
+
+## Open Source Standards
+
+This is an open-source project. All code must meet public-facing quality standards:
+
+- **Licensing**: AGPL-3.0 license. Every source file should have the license header where conventional for the language.
+- **Documentation**: Public APIs must have JSDoc comments. README files at each package root.
+- **CONTRIBUTING.md**: Will live at repo root describing how to contribute.
+- **Code quality**: No `any` types. No eslint-disable without justification. No TODO comments without a linked issue/task.
+- **Modularity**: Each package must be independently buildable and testable. Minimize cross-package imports -- go through `packages/shared/` for shared concerns.
+- **Dependency discipline**: Minimize external dependencies. Justify every new dependency. Prefer well-maintained, actively developed libraries with permissive licenses (MIT, Apache-2.0, BSD).
+- **Security**: No secrets in code. All credentials via environment variables. Input validation at every system boundary.
+- **Accessibility**: WCAG 2.1 AA compliance for all UI components.
 
 ## Important Notes for All Agents
 
