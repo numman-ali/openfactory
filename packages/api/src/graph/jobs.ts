@@ -7,8 +7,11 @@
  */
 
 import { Queue, Worker, type Job, type ConnectionOptions } from 'bullmq';
-import type { GraphService } from './index.js';
+import type { GraphService, GraphRepository } from './index.js';
 import type { GraphEntityType } from '@repo/shared/types/graph';
+import { DriftDetector } from './drift-detector.js';
+import { ChangePropagator } from './propagator.js';
+import { AlertGenerator } from './alerts.js';
 
 // ---------------------------------------------------------------------------
 // Job Types
@@ -115,12 +118,44 @@ export async function scheduleCodeDriftCheck(
   );
 }
 
+/**
+ * Register a repeatable periodic drift scan for a project.
+ * Defaults to daily (every 24 hours). Configurable via cronExpression.
+ *
+ * @param cronExpression - Cron pattern for the repeatable job. Default: daily at 2am UTC.
+ */
+export async function registerPeriodicDriftScan(
+  queue: Queue<GraphJobData, GraphJobResult>,
+  projectId: string,
+  cronExpression: string = '0 2 * * *',
+): Promise<void> {
+  await queue.upsertJobScheduler(
+    `periodic-drift:${projectId}`,
+    { pattern: cronExpression },
+    {
+      name: 'drift:periodic-scan',
+      data: { type: 'full_scan', projectId } as DriftDetectionJobData,
+    },
+  );
+}
+
+/**
+ * Remove a previously registered periodic drift scan.
+ */
+export async function removePeriodicDriftScan(
+  queue: Queue<GraphJobData, GraphJobResult>,
+  projectId: string,
+): Promise<void> {
+  await queue.removeJobScheduler(`periodic-drift:${projectId}`);
+}
+
 // ---------------------------------------------------------------------------
 // Worker
 // ---------------------------------------------------------------------------
 
 export interface GraphWorkerDeps {
   graphService: GraphService;
+  graphRepo: GraphRepository;
   /** Resolves a codebase file path to its graph node's entityId, or null if not tracked. */
   resolveFileEntityId(connectionId: string, filePath: string): Promise<string | null>;
   /** Read the current content of an entity for hash comparison. */
@@ -131,16 +166,20 @@ export function createGraphWorker(
   connection: ConnectionOptions,
   deps: GraphWorkerDeps
 ): Worker<GraphJobData, GraphJobResult> {
+  const driftDetector = new DriftDetector(deps.graphRepo);
+  const propagator = new ChangePropagator(deps.graphRepo);
+  const alertGenerator = new AlertGenerator(deps.graphRepo);
+
   return new Worker<GraphJobData, GraphJobResult>(
     QUEUE_NAME,
     async (job: Job<GraphJobData, GraphJobResult>) => {
       switch (job.data.type) {
         case 'full_scan':
-          return handleFullScan(job.data, deps);
+          return handleFullScan(job.data, driftDetector, alertGenerator);
         case 'propagate_change':
-          return handlePropagateChange(job.data, deps);
+          return handlePropagateChange(job.data, deps, propagator);
         case 'code_drift_check':
-          return handleCodeDriftCheck(job.data, deps);
+          return handleCodeDriftCheck(job.data, deps, propagator);
       }
     },
     {
@@ -157,22 +196,37 @@ export function createGraphWorker(
 
 async function handleFullScan(
   data: DriftDetectionJobData,
-  deps: GraphWorkerDeps
+  driftDetector: DriftDetector,
+  alertGenerator: AlertGenerator,
 ): Promise<GraphJobResult> {
-  const alerts = await deps.graphService.detectDrift(data.projectId);
-  return { alertsCreated: alerts.length, nodesAffected: 0 };
+  const report = await driftDetector.scanProject(data.projectId);
+  const alerts = await alertGenerator.createAlertsFromReport(report);
+  return { alertsCreated: alerts.length, nodesAffected: report.totalNodesScanned };
 }
 
 async function handlePropagateChange(
   data: ChangePropagationJobData,
-  deps: GraphWorkerDeps
+  deps: GraphWorkerDeps,
+  propagator: ChangePropagator,
 ): Promise<GraphJobResult> {
+  // First, update the node with new content via the graph service
   const event = await deps.graphService.propagateChange(
     data.projectId,
     data.entityType,
     data.entityId,
     data.newContent
   );
+
+  // Then run the propagator for deeper traversal if needed
+  const node = await deps.graphRepo.findNode(data.projectId, data.entityType, data.entityId);
+  if (node) {
+    const propagation = await propagator.propagate(data.projectId, node.id);
+    return {
+      alertsCreated: event.alerts.length + propagation.alertsCreated,
+      nodesAffected: event.affectedNodes.length + propagation.totalAffected,
+    };
+  }
+
   return {
     alertsCreated: event.alerts.length,
     nodesAffected: event.affectedNodes.length,
@@ -181,7 +235,8 @@ async function handlePropagateChange(
 
 async function handleCodeDriftCheck(
   data: CodeDriftCheckJobData,
-  deps: GraphWorkerDeps
+  deps: GraphWorkerDeps,
+  propagator: ChangePropagator,
 ): Promise<GraphJobResult> {
   let alertsCreated = 0;
   let nodesAffected = 0;
