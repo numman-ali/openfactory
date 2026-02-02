@@ -7,6 +7,8 @@ import multipart from "@fastify/multipart";
 import databasePlugin from "./plugins/database.js";
 import errorHandlerPlugin from "./plugins/error-handler.js";
 import authPlugin from "./plugins/auth.js";
+import swaggerPlugin from "./plugins/swagger.js";
+import websocketPlugin from "./plugins/websocket.js";
 import authRoutes from "./routes/auth.js";
 import orgRoutes from "./routes/organizations.js";
 import projectRoutes from "./routes/projects.js";
@@ -34,7 +36,9 @@ export async function buildApp() {
   await app.register(databasePlugin);
 
   await app.register(multipart, { limits: { fileSize: 50 * 1024 * 1024 } });
+  await app.register(swaggerPlugin);
   await app.register(authPlugin);
+  await app.register(websocketPlugin);
 
   app.get("/health", async () => ({ status: "ok", timestamp: new Date().toISOString() }));
 
