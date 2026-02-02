@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0
  *
  * Pluggable LLM provider system built on Vercel AI SDK v6.
- * Supports OpenAI, Anthropic, and Ollama (local).
+ * Supports OpenAI, Anthropic, Ollama (local), and OpenRouter.
  */
 
 import { createOpenAI } from '@ai-sdk/openai';
@@ -32,6 +32,13 @@ const providerFactories: Record<LLMProvider, ProviderFactory> = {
   ollama: (config) => {
     const provider = createOllama({
       baseURL: config.baseUrl ?? process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434/api',
+    });
+    return provider(config.model);
+  },
+  openrouter: (config) => {
+    const provider = createOpenAI({
+      apiKey: config.apiKey ?? process.env.OPENROUTER_API_KEY,
+      baseURL: config.baseUrl ?? 'https://openrouter.ai/api/v1',
     });
     return provider(config.model);
   },
@@ -65,6 +72,7 @@ function getDefaultModel(provider: LLMProvider): string {
     case 'openai': return 'gpt-4o';
     case 'anthropic': return 'claude-sonnet-4-20250514';
     case 'ollama': return 'llama3.1';
+    case 'openrouter': return 'anthropic/claude-sonnet-4';
     default: throw new Error(`Unknown LLM provider: ${String(provider)}`);
   }
 }

@@ -97,7 +97,7 @@ export type AgentRequest = z.infer<typeof AgentRequest>;
 // LLM Provider Configuration
 // ---------------------------------------------------------------------------
 
-export const LLMProvider = z.enum(['openai', 'anthropic', 'ollama']);
+export const LLMProvider = z.enum(['openai', 'anthropic', 'ollama', 'openrouter']);
 export type LLMProvider = z.infer<typeof LLMProvider>;
 
 export const LLMConfig = z.object({
