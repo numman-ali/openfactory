@@ -6,7 +6,7 @@
  * Batches requests to stay within rate limits with exponential backoff retry.
  */
 
-import { embedMany, type EmbeddingModel } from 'ai';
+import { embedMany } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { getEmbeddingConfig } from '../agents/providers/index.js';
@@ -75,7 +75,7 @@ export function createEmbeddingClient(config?: EmbeddingClientConfig): Embedding
 // ---------------------------------------------------------------------------
 
 async function embedBatchWithRetry(
-  model: EmbeddingModel<string>,
+  model: ReturnType<typeof createEmbeddingModel>,
   batch: string[],
   maxRetries: number,
 ): Promise<number[][]> {
@@ -84,7 +84,7 @@ async function embedBatchWithRetry(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     try {
       const { embeddings } = await embedMany({
-        model,
+        model: model as Parameters<typeof embedMany>[0]['model'],
         values: batch,
       });
       return embeddings;
@@ -109,7 +109,7 @@ function sleep(ms: number): Promise<void> {
  * Create an embedding model from the embedding config.
  * Supports OpenAI and Google (Gemini) embedding providers.
  */
-function createEmbeddingModel(config: { provider: string; model: string }): EmbeddingModel<string> {
+function createEmbeddingModel(config: { provider: string; model: string }) {
   switch (config.provider) {
     case 'google': {
       const provider = createGoogleGenerativeAI({
