@@ -9,7 +9,7 @@
 # ---------------------------------------------------------------------------
 FROM node:22-alpine AS deps
 
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN corepack enable && corepack prepare pnpm@10 --activate
 
 WORKDIR /app
 
@@ -26,7 +26,7 @@ RUN pnpm install --frozen-lockfile --prod
 # ---------------------------------------------------------------------------
 FROM node:22-alpine AS builder
 
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN corepack enable && corepack prepare pnpm@10 --activate
 
 WORKDIR /app
 
@@ -50,7 +50,7 @@ RUN pnpm --filter @repo/shared build && pnpm --filter @repo/api build
 # ---------------------------------------------------------------------------
 FROM node:22-alpine AS runner
 
-RUN corepack enable && corepack prepare pnpm@9 --activate
+RUN corepack enable && corepack prepare pnpm@10 --activate
 
 # Security: run as non-root
 RUN addgroup --system --gid 1001 openfactory && \
@@ -81,4 +81,4 @@ ENV PORT=3001
 
 EXPOSE 3001
 
-CMD ["node", "dist/index.js"]
+CMD ["node", "dist/server.js"]
