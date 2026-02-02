@@ -8,17 +8,67 @@
  */
 
 import { createHash } from 'node:crypto';
-import type {
-  GraphNode,
-  GraphEdge,
-  GraphEdgeType,
-  GraphEntityType,
-  DriftAlert,
-  DriftType,
-  DriftSeverity,
-  TraversalResult,
-  PropagationEvent,
-} from '@repo/shared/types/graph';
+// Types from shared schemas
+type GraphEntityType = "document" | "work_order" | "feature" | "feedback_item" | "artifact" | "codebase_file";
+type GraphEdgeType = "derives_from" | "shared_context" | "implements" | "feedback_on" | "parent_of" | "references" | "blocks" | "related_to";
+type DriftType = "code_drift" | "requirements_drift" | "foundation_drift" | "work_order_drift";
+type DriftSeverity = "low" | "medium" | "high";
+
+// Internal graph service types
+export interface GraphNode {
+  id: string;
+  projectId: string;
+  entityType: string;
+  entityId: string;
+  label: string;
+  metadata: Record<string, unknown>;
+  contentHash: string | null;
+  lastSyncedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GraphEdge {
+  id: string;
+  projectId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  edgeType: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface DriftAlert {
+  id: string;
+  projectId: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  driftType: DriftType;
+  description: string;
+  severity: DriftSeverity;
+  status: string;
+  resolvedAt: string | null;
+  resolvedBy: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface TraversalLayer {
+  depth: number;
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export interface TraversalResult {
+  rootNode: GraphNode;
+  layers: TraversalLayer[];
+}
+
+export interface PropagationEvent {
+  changedNode: GraphNode;
+  affectedNodes: { node: GraphNode; edge: GraphEdge; depth: number }[];
+  alerts: DriftAlert[];
+}
 
 // ---------------------------------------------------------------------------
 // Repository Interface
@@ -156,7 +206,7 @@ export class GraphService {
 
         affectedNodes.push({ node: affectedNode, edge, depth: layer.depth });
 
-        const driftType = determineDriftType(entityType, affectedNode.entityType, edge.edgeType);
+        const driftType = determineDriftType(entityType, affectedNode.entityType as GraphEntityType, edge.edgeType as GraphEdgeType);
         if (!driftType) continue;
 
         const alert = await this.repo.createDriftAlert({
