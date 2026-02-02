@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { eq, and, isNull, sql, lt } from "drizzle-orm";
-import { documents, documentVersions, features } from "../db/schema/projects";
-import { users } from "../db/schema/users";
-import { requireAuth } from "../plugins/auth";
-import { AppError } from "../plugins/error-handler";
+import { eq, and, isNull, sql, lt, inArray } from "drizzle-orm";
+import { documents, documentVersions, features } from "../db/schema/projects.js";
+import { users } from "../db/schema/users.js";
+import { requireAuth } from "../plugins/auth.js";
+import { AppError } from "../plugins/error-handler.js";
 
 const REFINERY_TYPES = ["product_overview", "feature_requirements", "technical_requirements"] as const;
 
@@ -22,7 +22,7 @@ const refineryRoutes: FastifyPluginAsync = async (fastify) => {
       const conditions = [
         eq(documents.projectId, request.params.projectId),
         isNull(documents.deletedAt),
-        sql`${documents.type} = ANY(${REFINERY_TYPES})`,
+        inArray(documents.type, [...REFINERY_TYPES]),
       ];
       if (type) conditions.push(eq(documents.type, type));
       if (featureId) conditions.push(eq(documents.featureId, featureId));

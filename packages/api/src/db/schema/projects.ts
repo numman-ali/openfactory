@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { pgTable, uuid, text, jsonb, timestamp, integer, unique, index, customType } from "drizzle-orm/pg-core";
-import { organizations } from "./organizations";
-import { users } from "./users";
+import { organizations } from "./organizations.js";
+import { users } from "./users.js";
 
 const bytea = customType<{ data: Buffer; driverData: Buffer }>({
   dataType() {

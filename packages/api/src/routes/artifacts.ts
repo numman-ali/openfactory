@@ -2,10 +2,10 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { eq, and, isNull, lt, sql } from "drizzle-orm";
-import { artifacts, artifactFolders } from "../db/schema/artifacts";
-import { users } from "../db/schema/users";
-import { requireAuth } from "../plugins/auth";
-import { AppError } from "../plugins/error-handler";
+import { artifacts, artifactFolders } from "../db/schema/artifacts.js";
+import { users } from "../db/schema/users.js";
+import { requireAuth } from "../plugins/auth.js";
+import { AppError } from "../plugins/error-handler.js";
 
 const artifactRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("preHandler", requireAuth);

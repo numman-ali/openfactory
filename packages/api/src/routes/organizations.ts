@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { eq, and, count, sql } from "drizzle-orm";
+import { eq, and, count, inArray } from "drizzle-orm";
 import { randomBytes, createHash } from "node:crypto";
-import { organizations } from "../db/schema/organizations";
-import { users, organizationMembers, apiKeys } from "../db/schema/users";
-import { projects } from "../db/schema/projects";
-import { templates } from "../db/schema/templates";
-import { requireAuth, requireOrgAdmin, requireOrgMember } from "../plugins/auth";
-import { AppError } from "../plugins/error-handler";
+import { organizations } from "../db/schema/organizations.js";
+import { users, organizationMembers, apiKeys } from "../db/schema/users.js";
+import { projects } from "../db/schema/projects.js";
+import { templates } from "../db/schema/templates.js";
+import { requireAuth, requireOrgAdmin, requireOrgMember } from "../plugins/auth.js";
+import { AppError } from "../plugins/error-handler.js";
 
 const orgRoutes: FastifyPluginAsync = async (fastify) => {
   // All routes require auth
@@ -28,18 +28,18 @@ const orgRoutes: FastifyPluginAsync = async (fastify) => {
     const orgIds = memberships.map((m) => m.orgId);
     if (orgIds.length === 0) return { organizations: [] };
 
-    const orgs = await db.select().from(organizations).where(sql`${organizations.id} = ANY(${orgIds})`);
+    const orgs = await db.select().from(organizations).where(inArray(organizations.id, orgIds));
 
     const memberCounts = await db
       .select({ orgId: organizationMembers.organizationId, count: count() })
       .from(organizationMembers)
-      .where(sql`${organizationMembers.organizationId} = ANY(${orgIds})`)
+      .where(inArray(organizationMembers.organizationId, orgIds))
       .groupBy(organizationMembers.organizationId);
 
     const projectCounts = await db
       .select({ orgId: projects.organizationId, count: count() })
       .from(projects)
-      .where(sql`${projects.organizationId} = ANY(${orgIds})`)
+      .where(inArray(projects.organizationId, orgIds))
       .groupBy(projects.organizationId);
 
     const memberCountMap = new Map(memberCounts.map((r) => [r.orgId, r.count]));

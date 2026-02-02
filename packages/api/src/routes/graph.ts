@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { eq, and, sql, lt, count } from "drizzle-orm";
-import { graphNodes, graphEdges, driftAlerts } from "../db/schema/graph";
-import { requireAuth } from "../plugins/auth";
-import { AppError } from "../plugins/error-handler";
+import { eq, and, sql, lt, count, inArray } from "drizzle-orm";
+import { graphNodes, graphEdges, driftAlerts } from "../db/schema/graph.js";
+import { requireAuth } from "../plugins/auth.js";
+import { AppError } from "../plugins/error-handler.js";
 
 const graphRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("preHandler", requireAuth);
@@ -30,12 +30,12 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
         const outgoing = await db
           .select({ nodeId: graphEdges.sourceNodeId, count: count() })
           .from(graphEdges)
-          .where(sql`${graphEdges.sourceNodeId} = ANY(${nodeIds})`)
+          .where(inArray(graphEdges.sourceNodeId, nodeIds))
           .groupBy(graphEdges.sourceNodeId);
         const incoming = await db
           .select({ nodeId: graphEdges.targetNodeId, count: count() })
           .from(graphEdges)
-          .where(sql`${graphEdges.targetNodeId} = ANY(${nodeIds})`)
+          .where(inArray(graphEdges.targetNodeId, nodeIds))
           .groupBy(graphEdges.targetNodeId);
 
         const countMap = new Map<string, number>();
@@ -124,7 +124,7 @@ const graphRoutes: FastifyPluginAsync = async (fastify) => {
       // Need target node info too - fetch separately
       const targetIds = [...new Set(rows.map((r) => r.edge.targetNodeId))];
       const targets = targetIds.length > 0
-        ? await db.select().from(graphNodes).where(sql`${graphNodes.id} = ANY(${targetIds})`)
+        ? await db.select().from(graphNodes).where(inArray(graphNodes.id, targetIds))
         : [];
       const targetMap = new Map(targets.map((t) => [t.id, t]));
 

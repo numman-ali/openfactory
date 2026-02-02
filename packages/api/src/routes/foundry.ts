@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { eq, and, isNull, sql, lt } from "drizzle-orm";
-import { documents, documentVersions, features } from "../db/schema/projects";
-import { users } from "../db/schema/users";
-import { driftAlerts, graphNodes } from "../db/schema/graph";
-import { requireAuth } from "../plugins/auth";
-import { AppError } from "../plugins/error-handler";
+import { eq, and, isNull, sql, lt, inArray } from "drizzle-orm";
+import { documents, documentVersions, features } from "../db/schema/projects.js";
+import { users } from "../db/schema/users.js";
+import { driftAlerts, graphNodes } from "../db/schema/graph.js";
+import { requireAuth } from "../plugins/auth.js";
+import { AppError } from "../plugins/error-handler.js";
 
 const FOUNDRY_TYPES = ["foundation_blueprint", "system_diagram", "feature_blueprint"] as const;
 
@@ -23,7 +23,7 @@ const foundryRoutes: FastifyPluginAsync = async (fastify) => {
       const conditions = [
         eq(documents.projectId, request.params.projectId),
         isNull(documents.deletedAt),
-        sql`${documents.type} = ANY(${FOUNDRY_TYPES})`,
+        inArray(documents.type, [...FOUNDRY_TYPES]),
       ];
       if (type) conditions.push(eq(documents.type, type));
       if (featureId) conditions.push(eq(documents.featureId, featureId));

@@ -2,14 +2,14 @@
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { eq, and, isNull, sql, lt, count, inArray } from "drizzle-orm";
-import { phases, workOrders } from "../db/schema/planner";
-import { features } from "../db/schema/projects";
-import { users } from "../db/schema/users";
-import { comments } from "../db/schema/comments";
-import { activities } from "../db/schema/activity";
-import { graphEdges, graphNodes } from "../db/schema/graph";
-import { requireAuth } from "../plugins/auth";
-import { AppError } from "../plugins/error-handler";
+import { phases, workOrders } from "../db/schema/planner.js";
+import { features } from "../db/schema/projects.js";
+import { users } from "../db/schema/users.js";
+import { comments } from "../db/schema/comments.js";
+import { activities } from "../db/schema/activity.js";
+import { graphEdges, graphNodes } from "../db/schema/graph.js";
+import { requireAuth } from "../plugins/auth.js";
+import { AppError } from "../plugins/error-handler.js";
 
 const plannerRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("preHandler", requireAuth);
@@ -118,7 +118,7 @@ const plannerRoutes: FastifyPluginAsync = async (fastify) => {
       const conditions = [eq(workOrders.projectId, request.params.projectId), isNull(workOrders.deletedAt)];
       if (status) {
         const statuses = status.split(",");
-        conditions.push(sql`${workOrders.status} = ANY(${statuses})`);
+        conditions.push(inArray(workOrders.status, statuses));
       }
       if (phaseId) conditions.push(eq(workOrders.phaseId, phaseId));
       if (featureId) conditions.push(eq(workOrders.featureId, featureId));

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { eq, and, sql, lt, count, gte } from "drizzle-orm";
-import { feedbackItems } from "../db/schema/feedback";
-import { requireAuth } from "../plugins/auth";
-import { AppError } from "../plugins/error-handler";
+import { eq, and, sql, lt, count, gte, inArray } from "drizzle-orm";
+import { feedbackItems } from "../db/schema/feedback.js";
+import { requireAuth } from "../plugins/auth.js";
+import { AppError } from "../plugins/error-handler.js";
 
 const validatorRoutes: FastifyPluginAsync = async (fastify) => {
   /** POST /api/projects/:projectId/validator/feedback - public (API key auth) */
@@ -58,7 +58,7 @@ const validatorRoutes: FastifyPluginAsync = async (fastify) => {
       const conditions = [eq(feedbackItems.projectId, request.params.projectId)];
       if (status) {
         const statuses = status.split(",");
-        conditions.push(sql`${feedbackItems.status} = ANY(${statuses})`);
+        conditions.push(inArray(feedbackItems.status, statuses));
       }
       if (category) conditions.push(eq(feedbackItems.category, category));
       if (minPriority) conditions.push(gte(feedbackItems.priorityScore, parseFloat(minPriority)));

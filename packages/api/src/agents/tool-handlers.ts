@@ -4,7 +4,7 @@
  * Real database-backed implementations for agent tool functions.
  */
 
-import { eq, and, isNull, ilike, sql, desc } from "drizzle-orm";
+import { eq, and, isNull, ilike, sql, desc, inArray } from "drizzle-orm";
 import { documents, features } from "../db/schema/projects.js";
 import { artifacts } from "../db/schema/artifacts.js";
 import { graphNodes, graphEdges, driftAlerts } from "../db/schema/graph.js";
@@ -141,7 +141,7 @@ export function createToolContext(db: Database, projectId: string, userId: strin
       relatedNodeIds.delete(node.id);
 
       const relatedNodes = relatedNodeIds.size > 0
-        ? await db.select().from(graphNodes).where(sql`${graphNodes.id} = ANY(${[...relatedNodeIds]})`)
+        ? await db.select().from(graphNodes).where(inArray(graphNodes.id, [...relatedNodeIds]))
         : [];
 
       return {
@@ -172,7 +172,7 @@ export function createToolContext(db: Database, projectId: string, userId: strin
       relatedNodeIds.delete(node.id);
 
       const relatedNodes = relatedNodeIds.size > 0
-        ? await db.select().from(graphNodes).where(sql`${graphNodes.id} = ANY(${[...relatedNodeIds]})`)
+        ? await db.select().from(graphNodes).where(inArray(graphNodes.id, [...relatedNodeIds]))
         : [];
 
       return {

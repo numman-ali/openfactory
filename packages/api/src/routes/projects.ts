@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
-import { eq, and, count, isNull, sql, lt } from "drizzle-orm";
-import { projects, features, documents } from "../db/schema/projects";
-import { artifacts } from "../db/schema/artifacts";
-import { workOrders } from "../db/schema/planner";
-import { activities } from "../db/schema/activity";
-import { requireAuth, requireOrgMember } from "../plugins/auth";
-import { AppError } from "../plugins/error-handler";
+import { eq, and, count, isNull, sql, lt, inArray } from "drizzle-orm";
+import { projects, features, documents } from "../db/schema/projects.js";
+import { artifacts } from "../db/schema/artifacts.js";
+import { workOrders } from "../db/schema/planner.js";
+import { activities } from "../db/schema/activity.js";
+import { requireAuth, requireOrgMember } from "../plugins/auth.js";
+import { AppError } from "../plugins/error-handler.js";
 
 const projectRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.addHook("preHandler", requireAuth);
@@ -30,19 +30,19 @@ const projectRoutes: FastifyPluginAsync = async (fastify) => {
     const featureCounts = await db
       .select({ projectId: features.projectId, count: count() })
       .from(features)
-      .where(and(sql`${features.projectId} = ANY(${projectIds})`, isNull(features.deletedAt)))
+      .where(and(inArray(features.projectId, projectIds), isNull(features.deletedAt)))
       .groupBy(features.projectId);
 
     const docCounts = await db
       .select({ projectId: documents.projectId, count: count() })
       .from(documents)
-      .where(and(sql`${documents.projectId} = ANY(${projectIds})`, isNull(documents.deletedAt)))
+      .where(and(inArray(documents.projectId, projectIds), isNull(documents.deletedAt)))
       .groupBy(documents.projectId);
 
     const woCounts = await db
       .select({ projectId: workOrders.projectId, count: count() })
       .from(workOrders)
-      .where(sql`${workOrders.projectId} = ANY(${projectIds})`)
+      .where(inArray(workOrders.projectId, projectIds))
       .groupBy(workOrders.projectId);
 
     const fcMap = new Map(featureCounts.map((r) => [r.projectId, r.count]));

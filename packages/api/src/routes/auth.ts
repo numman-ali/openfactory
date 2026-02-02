@@ -3,10 +3,10 @@ import type { FastifyPluginAsync } from "fastify";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { randomBytes } from "node:crypto";
-import { users, sessions, organizationMembers } from "../db/schema/users";
-import { organizations } from "../db/schema/organizations";
-import { requireAuth } from "../plugins/auth";
-import { AppError } from "../plugins/error-handler";
+import { users, sessions, organizationMembers } from "../db/schema/users.js";
+import { organizations } from "../db/schema/organizations.js";
+import { requireAuth } from "../plugins/auth.js";
+import { AppError } from "../plugins/error-handler.js";
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   /** POST /api/auth/signup */

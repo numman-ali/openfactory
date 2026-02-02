@@ -2,8 +2,8 @@
 import fp from "fastify-plugin";
 import type { FastifyPluginAsync, FastifyRequest, FastifyReply } from "fastify";
 import { eq, and } from "drizzle-orm";
-import { sessions, users, organizationMembers, apiKeys } from "../db/schema/users";
-import { AppError } from "./error-handler";
+import { sessions, users, organizationMembers, apiKeys } from "../db/schema/users.js";
+import { AppError } from "./error-handler.js";
 
 export interface AuthUser {
   id: string;
