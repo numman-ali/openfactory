@@ -200,7 +200,7 @@ function hashContent(content: string): string {
   return createHash('sha256').update(content).digest('hex');
 }
 
-function formatChunkForEmbedding(chunk: CodeChunk, filePath: string): string {
+export function formatChunkForEmbedding(chunk: CodeChunk, filePath: string): string {
   const header = [
     `File: ${filePath}`,
     chunk.name ? `${chunk.chunkType}: ${chunk.name}` : `${chunk.chunkType}`,

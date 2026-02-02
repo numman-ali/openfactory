@@ -8,8 +8,8 @@
 
 import { Queue, Worker, type Job, type ConnectionOptions } from 'bullmq';
 import { IndexingPipeline, type IndexResult } from './index.js';
+import { SmartDiffer } from './differ.js';
 import type { GraphJobData, GraphJobResult } from '../graph/jobs.js';
-import type { Queue as GraphQueue } from 'bullmq';
 
 // ---------------------------------------------------------------------------
 // Job Types
@@ -121,6 +121,8 @@ export async function scheduleSmartReindex(
 
 export interface IndexWorkerDeps {
   pipeline: IndexingPipeline;
+  /** Optional SmartDiffer for incremental reindexing */
+  smartDiffer?: SmartDiffer;
   /** Graph job queue for scheduling drift checks after reindex */
   graphQueue: Queue<GraphJobData, GraphJobResult>;
   /** Read file content by path from a connection for drift checking */
@@ -196,8 +198,28 @@ async function handleSmartReindex(
   const { connectionId, projectId, owner, repo, branch, changedFiles } = job.data;
   await job.updateProgress(10);
 
-  // Smart reindex: run full pipeline (it already does hash comparison internally)
-  const result = await deps.pipeline.index(connectionId, owner, repo, branch);
+  // Use SmartDiffer if available for incremental reindexing, otherwise fall back to full pipeline
+  let result: IndexResult;
+  if (deps.smartDiffer) {
+    const smartResult = await deps.smartDiffer.reindex(
+      connectionId, owner, repo, branch,
+      (processed, total) => {
+        const progress = 10 + Math.round((processed / Math.max(total, 1)) * 70);
+        void job.updateProgress(progress);
+      },
+    );
+    result = {
+      success: smartResult.overallState === 'COMPLETE',
+      commit: smartResult.commit,
+      filesAdded: smartResult.diff.toAdd.length,
+      filesUpdated: smartResult.diff.toUpdate.length,
+      filesDeleted: smartResult.diff.toDelete.length,
+      filesProcessed: smartResult.processed.filter((p) => p.state === 'COMPLETE').length,
+      totalFiles: smartResult.diff.toAdd.length + smartResult.diff.toUpdate.length + smartResult.diff.unchanged,
+    };
+  } else {
+    result = await deps.pipeline.index(connectionId, owner, repo, branch);
+  }
   await job.updateProgress(80);
 
   // Schedule drift check with the actually changed files

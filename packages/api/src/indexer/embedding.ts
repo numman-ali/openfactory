@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: AGPL-3.0
  *
  * Generates vector embeddings for code chunks using the LLM provider abstraction.
- * Batches requests to stay within rate limits.
+ * Batches requests to stay within rate limits with exponential backoff retry.
  */
 
 import { embedMany } from 'ai';
@@ -15,19 +15,35 @@ import type { EmbeddingClient } from './index.js';
 // ---------------------------------------------------------------------------
 
 /** Max texts per embedding API call */
-const BATCH_SIZE = 96;
+const DEFAULT_BATCH_SIZE = 96;
+/** Delay between batches to respect rate limits (ms) */
+const INTER_BATCH_DELAY_MS = 200;
+/** Max retries per batch */
+const MAX_RETRIES = 3;
+/** Base delay for exponential backoff (ms) */
+const BASE_RETRY_DELAY_MS = 1000;
 
 // ---------------------------------------------------------------------------
 // Embedding Client Factory
 // ---------------------------------------------------------------------------
 
+export interface EmbeddingClientConfig {
+  batchSize?: number;
+  interBatchDelayMs?: number;
+  maxRetries?: number;
+}
+
 /**
  * Creates an EmbeddingClient that uses the configured LLM provider for embeddings.
  * Uses the Vercel AI SDK `embedMany` for batch embedding generation.
+ * Includes rate limiting via inter-batch delays and exponential backoff retry.
  */
-export function createEmbeddingClient(): EmbeddingClient {
-  const config = getEmbeddingConfig();
-  const model = createModel(config);
+export function createEmbeddingClient(config?: EmbeddingClientConfig): EmbeddingClient {
+  const embeddingConfig = getEmbeddingConfig();
+  const model = createModel(embeddingConfig);
+  const batchSize = config?.batchSize ?? DEFAULT_BATCH_SIZE;
+  const interBatchDelay = config?.interBatchDelayMs ?? INTER_BATCH_DELAY_MS;
+  const maxRetries = config?.maxRetries ?? MAX_RETRIES;
 
   return {
     async embed(texts: string[]): Promise<number[][]> {
@@ -35,16 +51,54 @@ export function createEmbeddingClient(): EmbeddingClient {
 
       const allEmbeddings: number[][] = [];
 
-      for (let i = 0; i < texts.length; i += BATCH_SIZE) {
-        const batch = texts.slice(i, i + BATCH_SIZE);
-        const { embeddings } = await embedMany({
-          model,
-          values: batch,
-        });
+      for (let i = 0; i < texts.length; i += batchSize) {
+        const batch = texts.slice(i, i + batchSize);
+
+        const embeddings = await embedBatchWithRetry(model, batch, maxRetries);
         allEmbeddings.push(...embeddings);
+
+        // Rate limit: delay between batches (skip after last batch)
+        if (i + batchSize < texts.length) {
+          await sleep(interBatchDelay);
+        }
       }
 
       return allEmbeddings;
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// Retry Logic
+// ---------------------------------------------------------------------------
+
+async function embedBatchWithRetry(
+  model: ReturnType<typeof createModel>,
+  batch: string[],
+  maxRetries: number,
+): Promise<number[][]> {
+  let lastError: unknown;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const { embeddings } = await embedMany({
+        model,
+        values: batch,
+      });
+      return embeddings;
+    } catch (err) {
+      lastError = err;
+
+      if (attempt < maxRetries) {
+        const delay = BASE_RETRY_DELAY_MS * Math.pow(2, attempt);
+        await sleep(delay);
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
