@@ -2,197 +2,464 @@
 "use client";
 
 import * as React from "react";
-import { useState, useMemo } from "react";
-import { ArrowUpDown, ChevronDown, Search } from "lucide-react";
+import {
+  flexRender,
+  getCoreRowModel,
+  getFilteredRowModel,
+  getGroupedRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type SortingState,
+  type ColumnFiltersState,
+  type RowSelectionState,
+  type GroupingState,
+  type ExpandedState,
+  type Header,
+} from "@tanstack/react-table";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  ChevronRight,
+  ChevronDown,
+  GripVertical,
+  Search,
+} from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
-export interface Column<T> {
-  id: string;
-  header: string;
-  accessorFn: (row: T) => React.ReactNode;
-  sortable?: boolean;
-  width?: string;
-}
+export type { ColumnDef } from "@tanstack/react-table";
 
-interface DataTableProps<T> {
-  columns: Column<T>[];
-  data: T[];
-  getRowId: (row: T) => string;
+interface DataTableProps<TData> {
+  columns: ColumnDef<TData, unknown>[];
+  data: TData[];
   searchPlaceholder?: string;
-  searchAccessor?: (row: T) => string;
-  groupBy?: {
-    accessor: (row: T) => string;
-    label: (value: string) => string;
-  };
-  onRowClick?: (row: T) => void;
-  emptyMessage?: string;
+  searchColumn?: string;
+  enableRowSelection?: boolean;
+  enableGrouping?: boolean;
+  groupBy?: string[];
+  enableDragReorder?: boolean;
+  enablePagination?: boolean;
+  pageSize?: number;
+  getRowId?: (row: TData) => string;
+  onRowSelectionChange?: (rows: TData[]) => void;
+  onReorder?: (activeId: string, overId: string) => void;
+  bulkActions?: React.ReactNode;
   className?: string;
 }
 
-type SortDirection = "asc" | "desc";
+interface SortableRowProps {
+  id: string;
+  children: React.ReactNode;
+  className?: string;
+}
 
-export function DataTable<T>({
-  columns,
-  data,
-  getRowId,
-  searchPlaceholder = "Search...",
-  searchAccessor,
-  groupBy,
-  onRowClick,
-  emptyMessage = "No data",
-  className,
-}: DataTableProps<T>) {
-  const [search, setSearch] = useState("");
-  const [sortColumn, setSortColumn] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>("asc");
-  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+function SortableRow({ id, children, className }: SortableRowProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
 
-  const filtered = useMemo(() => {
-    if (!search || !searchAccessor) return data;
-    const lower = search.toLowerCase();
-    return data.filter((row) => searchAccessor(row).toLowerCase().includes(lower));
-  }, [data, search, searchAccessor]);
-
-  const sorted = useMemo(() => {
-    if (!sortColumn) return filtered;
-    const col = columns.find((c) => c.id === sortColumn);
-    if (!col) return filtered;
-    return [...filtered].sort((a, b) => {
-      const aVal = String(col.accessorFn(a) ?? "");
-      const bVal = String(col.accessorFn(b) ?? "");
-      const cmp = aVal.localeCompare(bVal);
-      return sortDirection === "asc" ? cmp : -cmp;
-    });
-  }, [filtered, sortColumn, sortDirection, columns]);
-
-  const toggleSort = (columnId: string) => {
-    if (sortColumn === columnId) {
-      setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortColumn(columnId);
-      setSortDirection("asc");
-    }
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
   };
-
-  const toggleGroup = (groupValue: string) => {
-    setCollapsedGroups((prev) => {
-      const next = new Set(prev);
-      if (next.has(groupValue)) {
-        next.delete(groupValue);
-      } else {
-        next.add(groupValue);
-      }
-      return next;
-    });
-  };
-
-  const groups = useMemo(() => {
-    if (!groupBy) return null;
-    const map = new Map<string, T[]>();
-    for (const row of sorted) {
-      const key = groupBy.accessor(row);
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(row);
-    }
-    return map;
-  }, [sorted, groupBy]);
-
-  const renderRows = (rows: T[]) =>
-    rows.map((row) => (
-      <tr
-        key={getRowId(row)}
-        onClick={() => onRowClick?.(row)}
-        className={cn(
-          "border-b border-border transition-colors hover:bg-muted/50",
-          onRowClick && "cursor-pointer"
-        )}
-      >
-        {columns.map((col) => (
-          <td key={col.id} className="px-4 py-3 text-sm" style={{ width: col.width }}>
-            {col.accessorFn(row)}
-          </td>
-        ))}
-      </tr>
-    ));
 
   return (
-    <div className={cn("flex flex-col", className)}>
-      {searchAccessor && (
-        <div className="mb-4 flex items-center gap-2">
-          <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+    <TableRow ref={setNodeRef} style={style} className={className}>
+      <TableCell className="w-8 px-2">
+        <button
+          className="cursor-grab touch-none"
+          aria-label="Drag to reorder"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </button>
+      </TableCell>
+      {children}
+    </TableRow>
+  );
+}
+
+export function DataTable<TData>({
+  columns,
+  data,
+  searchPlaceholder = "Search...",
+  searchColumn,
+  enableRowSelection = false,
+  enableGrouping = false,
+  groupBy: initialGroupBy,
+  enableDragReorder = false,
+  enablePagination = true,
+  pageSize = 20,
+  getRowId,
+  onRowSelectionChange,
+  onReorder,
+  bulkActions,
+  className,
+}: DataTableProps<TData>) {
+  const [sorting, setSorting] = React.useState<SortingState>([]);
+  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
+    []
+  );
+  const [rowSelection, setRowSelection] = React.useState<RowSelectionState>({});
+  const [globalFilter, setGlobalFilter] = React.useState("");
+  const [grouping, setGrouping] = React.useState<GroupingState>(
+    initialGroupBy ?? []
+  );
+  const [expanded, setExpanded] = React.useState<ExpandedState>(true);
+
+  const allColumns = React.useMemo(() => {
+    if (!enableRowSelection) return columns;
+    const selectColumn: ColumnDef<TData, unknown> = {
+      id: "select",
+      header: ({ table }) => (
+        <Checkbox
+          checked={
+            table.getIsAllPageRowsSelected() ||
+            (table.getIsSomePageRowsSelected() && "indeterminate")
+          }
+          onCheckedChange={(value) =>
+            table.toggleAllPageRowsSelected(!!value)
+          }
+          aria-label="Select all"
+        />
+      ),
+      cell: ({ row }) => (
+        <Checkbox
+          checked={row.getIsSelected()}
+          onCheckedChange={(value) => row.toggleSelected(!!value)}
+          aria-label="Select row"
+        />
+      ),
+      enableSorting: false,
+      enableGrouping: false,
+    };
+    return [selectColumn, ...columns];
+  }, [columns, enableRowSelection]);
+
+  const table = useReactTable({
+    data,
+    columns: allColumns,
+    state: {
+      sorting,
+      columnFilters,
+      rowSelection,
+      globalFilter,
+      grouping: enableGrouping ? grouping : [],
+      expanded,
+    },
+    onSortingChange: setSorting,
+    onColumnFiltersChange: setColumnFilters,
+    onRowSelectionChange: setRowSelection,
+    onGlobalFilterChange: setGlobalFilter,
+    onGroupingChange: setGrouping,
+    onExpandedChange: setExpanded,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: enablePagination
+      ? getPaginationRowModel()
+      : undefined,
+    getGroupedRowModel: enableGrouping ? getGroupedRowModel() : undefined,
+    getRowId,
+    enableRowSelection,
+    initialState: {
+      pagination: { pageSize },
+    },
+  });
+
+  React.useEffect(() => {
+    if (!onRowSelectionChange) return;
+    const selectedRows = table
+      .getFilteredSelectedRowModel()
+      .rows.map((r) => r.original);
+    onRowSelectionChange(selectedRows);
+  }, [rowSelection, table, onRowSelectionChange]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id && onReorder) {
+      onReorder(String(active.id), String(over.id));
+    }
+  }
+
+  const rowIds = table.getRowModel().rows.map((row) => row.id);
+  const selectedCount = Object.keys(rowSelection).length;
+
+  function renderTableBody() {
+    const rows = table.getRowModel().rows;
+    if (rows.length === 0) {
+      return (
+        <TableRow>
+          <TableCell
+            colSpan={allColumns.length + (enableDragReorder ? 1 : 0)}
+            className="h-24 text-center text-muted-foreground"
+          >
+            No results.
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    return rows.map((row) => {
+      const cells = row.getVisibleCells().map((cell) => {
+        if (cell.getIsGrouped()) {
+          return (
+            <TableCell key={cell.id} colSpan={allColumns.length}>
+              <button
+                className="flex items-center gap-1 font-medium"
+                onClick={row.getToggleExpandedHandler()}
+              >
+                {row.getIsExpanded() ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                {flexRender(cell.column.columnDef.cell, cell.getContext())}{" "}
+                <span className="text-muted-foreground">
+                  ({row.subRows.length})
+                </span>
+              </button>
+            </TableCell>
+          );
+        }
+        if (cell.getIsAggregated()) {
+          return (
+            <TableCell key={cell.id}>
+              {flexRender(
+                cell.column.columnDef.aggregatedCell ??
+                  cell.column.columnDef.cell,
+                cell.getContext()
+              )}
+            </TableCell>
+          );
+        }
+        if (cell.getIsPlaceholder()) {
+          return <TableCell key={cell.id} />;
+        }
+        return (
+          <TableCell key={cell.id}>
+            {flexRender(cell.column.columnDef.cell, cell.getContext())}
+          </TableCell>
+        );
+      });
+
+      if (enableDragReorder) {
+        return (
+          <SortableRow
+            key={row.id}
+            id={row.id}
+            className={cn(
+              row.getIsSelected() && "bg-muted"
+            )}
+          >
+            {cells}
+          </SortableRow>
+        );
+      }
+
+      return (
+        <TableRow
+          key={row.id}
+          data-state={row.getIsSelected() ? "selected" : undefined}
+        >
+          {enableDragReorder && <TableCell />}
+          {cells}
+        </TableRow>
+      );
+    });
+  }
+
+  return (
+    <div className={cn("space-y-4", className)}>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-1 items-center gap-2">
+          <div className="relative max-w-sm flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
               placeholder={searchPlaceholder}
+              value={
+                searchColumn
+                  ? (table.getColumn(searchColumn)?.getFilterValue() as string) ??
+                    ""
+                  : globalFilter
+              }
+              onChange={(e) => {
+                if (searchColumn) {
+                  table
+                    .getColumn(searchColumn)
+                    ?.setFilterValue(e.target.value);
+                } else {
+                  setGlobalFilter(e.target.value);
+                }
+              }}
               className="pl-9"
             />
           </div>
         </div>
-      )}
-
-      <div className="overflow-auto rounded-md border border-border">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-border bg-muted/50">
-              {columns.map((col) => (
-                <th
-                  key={col.id}
-                  className="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider text-muted-foreground"
-                  style={{ width: col.width }}
-                >
-                  {col.sortable ? (
-                    <button
-                      onClick={() => toggleSort(col.id)}
-                      className="inline-flex items-center gap-1 hover:text-foreground"
-                    >
-                      {col.header}
-                      <ArrowUpDown className="h-3 w-3" />
-                    </button>
-                  ) : (
-                    col.header
-                  )}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {groups ? (
-              Array.from(groups.entries()).map(([groupValue, rows]) => (
-                <React.Fragment key={groupValue}>
-                  <tr className="border-b border-border bg-muted/30">
-                    <td colSpan={columns.length} className="px-4 py-2">
-                      <button
-                        onClick={() => toggleGroup(groupValue)}
-                        className="inline-flex items-center gap-2 text-sm font-medium"
-                      >
-                        <ChevronDown
-                          className={cn(
-                            "h-4 w-4 transition-transform",
-                            collapsedGroups.has(groupValue) && "-rotate-90"
-                          )}
-                        />
-                        {groupBy!.label(groupValue)}
-                        <span className="text-xs text-muted-foreground">({rows.length})</span>
-                      </button>
-                    </td>
-                  </tr>
-                  {!collapsedGroups.has(groupValue) && renderRows(rows)}
-                </React.Fragment>
-              ))
-            ) : sorted.length > 0 ? (
-              renderRows(sorted)
-            ) : (
-              <tr>
-                <td colSpan={columns.length} className="px-4 py-8 text-center text-sm text-muted-foreground">
-                  {emptyMessage}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+        {selectedCount > 0 && bulkActions && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">
+              {selectedCount} selected
+            </span>
+            {bulkActions}
+          </div>
+        )}
       </div>
+
+      <div className="rounded-md border">
+        {enableDragReorder ? (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={rowIds}
+              strategy={verticalListSortingStrategy}
+            >
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id}>
+                      <TableHead className="w-8" />
+                      {headerGroup.headers.map((header) => (
+                        <TableHead key={header.id} colSpan={header.colSpan}>
+                          {header.isPlaceholder ? null : (
+                            <SortableHeader header={header} />
+                          )}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>{renderTableBody()}</TableBody>
+              </Table>
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <Table>
+            <TableHeader>
+              {table.getHeaderGroups().map((headerGroup) => (
+                <TableRow key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <TableHead key={header.id} colSpan={header.colSpan}>
+                      {header.isPlaceholder ? null : (
+                        <SortableHeader header={header} />
+                      )}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              ))}
+            </TableHeader>
+            <TableBody>{renderTableBody()}</TableBody>
+          </Table>
+        )}
+      </div>
+
+      {enablePagination && (
+        <div className="flex items-center justify-between">
+          <p className="text-sm text-muted-foreground">
+            {table.getFilteredRowModel().rows.length} row(s) total
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.previousPage()}
+              disabled={!table.getCanPreviousPage()}
+            >
+              Previous
+            </Button>
+            <span className="text-sm text-muted-foreground">
+              Page {table.getState().pagination.pageIndex + 1} of{" "}
+              {table.getPageCount()}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => table.nextPage()}
+              disabled={!table.getCanNextPage()}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function SortableHeader<TData>({
+  header,
+}: {
+  header: Header<TData, unknown>;
+}) {
+  if (!header.column.getCanSort()) {
+    return (
+      <>
+        {flexRender(header.column.columnDef.header, header.getContext())}
+      </>
+    );
+  }
+
+  const sorted = header.column.getIsSorted();
+
+  return (
+    <button
+      className="flex items-center gap-1"
+      onClick={header.column.getToggleSortingHandler()}
+    >
+      {flexRender(header.column.columnDef.header, header.getContext())}
+      {sorted === "asc" ? (
+        <ArrowUp className="h-3.5 w-3.5" />
+      ) : sorted === "desc" ? (
+        <ArrowDown className="h-3.5 w-3.5" />
+      ) : (
+        <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+      )}
+    </button>
   );
 }

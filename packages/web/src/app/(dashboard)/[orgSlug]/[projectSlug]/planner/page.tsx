@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Plus, Filter, Link2, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { DataTable, type Column } from "@/components/data-table/data-table";
+import { DataTable, type ColumnDef } from "@/components/data-table/data-table";
 import { AgentChatPanel, type ChatMessage } from "@/components/chat/agent-chat-panel";
 
 interface WorkOrder {
@@ -34,42 +34,39 @@ const STATUS_LABELS: Record<string, string> = {
   done: "Done",
 };
 
-const columns: Column<WorkOrder>[] = [
+const columns: ColumnDef<WorkOrder, unknown>[] = [
   {
-    id: "title",
+    accessorKey: "title",
     header: "Title",
-    accessorFn: (row) => row.title,
-    sortable: true,
   },
   {
-    id: "status",
+    accessorKey: "status",
     header: "Status",
-    accessorFn: (row) => (
-      <Badge variant="secondary" className={STATUS_COLORS[row.status]}>
-        {STATUS_LABELS[row.status]}
+    cell: ({ row }) => (
+      <Badge variant="secondary" className={STATUS_COLORS[row.original.status]}>
+        {STATUS_LABELS[row.original.status]}
       </Badge>
     ),
-    sortable: true,
-    width: "120px",
   },
   {
-    id: "phase",
+    accessorKey: "phase",
     header: "Phase",
-    accessorFn: (row) => row.phase ?? "Unassigned",
-    sortable: true,
-    width: "140px",
+    cell: ({ row }) => row.original.phase ?? "Unassigned",
   },
   {
-    id: "feature",
+    accessorKey: "feature",
     header: "Feature",
-    accessorFn: (row) => row.feature ?? "-",
-    width: "160px",
+    cell: ({ row }) => row.original.feature ?? "-",
+    enableSorting: false,
   },
   {
-    id: "assignees",
+    accessorKey: "assignees",
     header: "Assignees",
-    accessorFn: (row) => row.assignees.length > 0 ? row.assignees.join(", ") : "Unassigned",
-    width: "140px",
+    cell: ({ row }) =>
+      row.original.assignees.length > 0
+        ? row.original.assignees.join(", ")
+        : "Unassigned",
+    enableSorting: false,
   },
 ];
 
@@ -121,11 +118,9 @@ export default function PlannerPage() {
           <DataTable
             columns={columns}
             data={workOrders}
-            getRowId={(row) => row.id}
+            getRowId={(row: WorkOrder) => row.id}
             searchPlaceholder="Search work orders..."
-            searchAccessor={(row) => row.title}
-            onRowClick={(row) => setSelectedWorkOrder(row)}
-            emptyMessage="No work orders yet. Create one or extract from blueprints."
+            searchColumn="title"
           />
         </div>
       </div>
