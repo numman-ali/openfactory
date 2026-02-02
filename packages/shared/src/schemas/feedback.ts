@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: AGPL-3.0-only
+import { z } from "zod";
+import { uuidSchema, datetimeSchema, paginationRequestSchema } from "./common.js";
+
+export const feedbackCategorySchema = z.enum(["bug", "feature_request", "performance", "other"]);
+export const feedbackStatusSchema = z.enum(["new", "triaged", "in_progress", "resolved", "dismissed"]);
+export const submitFeedbackRequestSchema = z.object({ title: z.string().max(500).optional(), description: z.string().min(1).max(10000), category: feedbackCategorySchema.optional(), browserInfo: z.object({ name: z.string(), version: z.string(), os: z.string() }).optional(), deviceInfo: z.object({ type: z.string(), screenWidth: z.number().int(), screenHeight: z.number().int() }).optional(), sessionData: z.record(z.string(), z.unknown()).optional(), externalUserId: z.string().max(255).optional(), tags: z.array(z.string().max(100)).max(20).optional() });
+export const feedbackListItemSchema = z.object({ id: uuidSchema, title: z.string().nullable(), description: z.string(), category: feedbackCategorySchema.nullable(), priorityScore: z.number().nullable(), status: feedbackStatusSchema, tags: z.array(z.string()), externalUserId: z.string().nullable(), generatedIssueUrl: z.string().nullable(), createdAt: datetimeSchema });
+export const feedbackDetailSchema = feedbackListItemSchema.extend({ browserInfo: z.record(z.string(), z.unknown()).nullable(), deviceInfo: z.record(z.string(), z.unknown()).nullable(), sessionData: z.record(z.string(), z.unknown()).nullable(), generatedIssueId: z.string().nullable(), sourceAppKey: z.object({ id: uuidSchema, name: z.string() }).nullable(), updatedAt: datetimeSchema });
+export const updateFeedbackRequestSchema = z.object({ status: z.enum(["triaged", "in_progress", "resolved", "dismissed"]).optional(), category: feedbackCategorySchema.optional(), priorityScore: z.number().min(0).max(1).optional(), tags: z.array(z.string().max(100)).max(20).optional() });
+export const generateIssueRequestSchema = z.object({ integration: z.enum(["github_issues", "jira"]), title: z.string().max(500).optional(), body: z.string().max(50000).optional(), labels: z.array(z.string().max(100)).optional() });
+export const generateIssueResponseSchema = z.object({ issueUrl: z.string(), issueId: z.string(), integration: z.string() });
+export const listFeedbackQuerySchema = paginationRequestSchema.extend({ status: z.string().optional(), category: z.string().optional(), search: z.string().optional(), sortBy: z.enum(["createdAt", "priorityScore"]).optional(), sortOrder: z.enum(["asc", "desc"]).optional() });
+export const feedbackStatsSchema = z.object({ totalCount: z.number().int(), byCategory: z.record(z.string(), z.number().int()), byStatus: z.record(z.string(), z.number().int()), averagePriorityScore: z.number(), topTags: z.array(z.object({ tag: z.string(), count: z.number().int() })), timeline: z.array(z.object({ date: z.string(), count: z.number().int() })) });

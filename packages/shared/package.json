@@ -1,0 +1,23 @@
+{
+  "name": "@repo/shared",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./schemas": { "types": "./dist/schemas/index.d.ts", "import": "./dist/schemas/index.js" },
+    "./types": { "types": "./dist/types/index.d.ts", "import": "./dist/types/index.js" },
+    "./constants": { "types": "./dist/constants/index.d.ts", "import": "./dist/constants/index.js" },
+    "./utils": { "types": "./dist/utils/index.d.ts", "import": "./dist/utils/index.js" }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
