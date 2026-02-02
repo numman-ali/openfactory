@@ -1,0 +1,17 @@
+{
+  "name": "openfactory",
+  "private": true,
+  "license": "AGPL-3.0",
+  "packageManager": "pnpm@10.24.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check",
+    "test": "turbo test",
+    "format": "prettier --write ."
+  }
+}
