@@ -1,22 +1,24 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 /**
- * GitHub App integration for OpenFactory.
+ * GitHub App configuration and installation token management.
  *
- * Provides read-only access to repositories for codebase indexing,
- * webhook handling for push-triggered reindexing, and OAuth flow
- * for GitHub App installation.
+ * Loads app credentials from environment variables, generates JWTs
+ * for app-level authentication, and manages per-installation access
+ * tokens with caching and automatic refresh.
  */
 
-import type { FastifyInstance } from "fastify";
+import { createPrivateKey, sign } from "crypto";
+import type {
+  GitHubAppConfig,
+  InstallationToken,
+  GitHubInstallationTokenResponse,
+} from "./types.js";
 
-export interface GitHubAppConfig {
-  appId: string;
-  privateKey: string;
-  webhookSecret: string;
-  clientId: string;
-  clientSecret: string;
-}
+const GITHUB_API_BASE = "https://api.github.com";
+
+/** Buffer (in ms) before token expiry to trigger refresh. */
+const TOKEN_REFRESH_BUFFER_MS = 5 * 60 * 1000;
 
 /**
  * Load GitHub App configuration from environment variables.
@@ -43,29 +45,76 @@ export function loadGitHubAppConfig(): GitHubAppConfig | null {
 }
 
 /**
- * Register GitHub App routes on the Fastify instance.
+ * Generate a JSON Web Token (JWT) for GitHub App authentication.
  *
- * Routes:
- *   GET  /api/integrations/github/install    - Redirect to GitHub App install
- *   GET  /api/integrations/github/callback   - OAuth callback after installation
+ * GitHub requires app-level requests to be signed with a JWT
+ * containing the app ID, issued using the app's private key (RS256).
  */
-export async function registerGitHubRoutes(
-  app: FastifyInstance,
-  _config: GitHubAppConfig,
-): Promise<void> {
-  app.get("/api/integrations/github/install", async (_request, reply) => {
-    // TODO: Build GitHub App installation URL with state parameter
-    // Redirect to: https://github.com/apps/{app-name}/installations/new
-    reply.code(501).send({ error: "Not implemented" });
-  });
+export function generateAppJwt(config: GitHubAppConfig): string {
+  const now = Math.floor(Date.now() / 1000);
+  const header = Buffer.from(JSON.stringify({ alg: "RS256", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(
+    JSON.stringify({
+      iat: now - 60,
+      exp: now + 10 * 60,
+      iss: config.appId,
+    }),
+  ).toString("base64url");
 
-  app.get("/api/integrations/github/callback", async (request, reply) => {
-    // TODO: Handle installation callback
-    // 1. Verify state parameter
-    // 2. Exchange code for access token
-    // 3. Store installation_id in codebase_connections
-    // 4. Redirect back to project settings
-    void request;
-    reply.code(501).send({ error: "Not implemented" });
-  });
+  const key = createPrivateKey(config.privateKey);
+  const signature = sign("sha256", Buffer.from(`${header}.${payload}`), key).toString("base64url");
+  return `${header}.${payload}.${signature}`;
+}
+
+/** In-memory cache of installation tokens keyed by installation ID. */
+const tokenCache = new Map<number, InstallationToken>();
+
+/**
+ * Get a valid installation access token, using the cache when possible.
+ *
+ * If the cached token is still valid (with a 5-minute buffer), it is
+ * returned immediately. Otherwise a new token is requested from the
+ * GitHub API and cached.
+ */
+export async function getInstallationToken(
+  config: GitHubAppConfig,
+  installationId: number,
+): Promise<string> {
+  const cached = tokenCache.get(installationId);
+  if (cached && cached.expiresAt.getTime() - Date.now() > TOKEN_REFRESH_BUFFER_MS) {
+    return cached.token;
+  }
+
+  const jwt = generateAppJwt(config);
+  const response = await fetch(
+    `${GITHUB_API_BASE}/app/installations/${installationId}/access_tokens`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`Failed to create installation token (${response.status}): ${body}`);
+  }
+
+  const data = (await response.json()) as GitHubInstallationTokenResponse;
+  const token: InstallationToken = {
+    token: data.token,
+    expiresAt: new Date(data.expires_at),
+    installationId,
+  };
+
+  tokenCache.set(installationId, token);
+  return token.token;
+}
+
+/** Remove a cached installation token (e.g. on uninstall). */
+export function clearInstallationToken(installationId: number): void {
+  tokenCache.delete(installationId);
 }
