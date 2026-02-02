@@ -55,3 +55,7 @@ export type ArtifactListItem = z.infer<typeof S.artifactListItemSchema>;
 export type ArtifactDetail = z.infer<typeof S.artifactDetailSchema>;
 export type TemplateListItem = z.infer<typeof S.templateListItemSchema>;
 export type Activity = z.infer<typeof S.activitySchema>;
+
+// Agent and knowledge graph types
+export * from './agent.js';
+export * from './graph.js';
