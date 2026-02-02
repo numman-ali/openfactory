@@ -3,7 +3,7 @@
 
 import useSWR from "swr";
 import { useCallback } from "react";
-import { api, ApiError } from "@/lib/api-client";
+import { api, ApiError, setSessionToken, clearSessionToken } from "@/lib/api-client";
 
 interface SessionUser {
   id: string;
@@ -53,6 +53,7 @@ export function useAuth() {
         email,
         password,
       });
+      setSessionToken(result.session.token);
       await mutate();
       return result;
     },
@@ -72,6 +73,7 @@ export function useAuth() {
         name,
         organizationName,
       });
+      setSessionToken(result.session.token);
       await mutate();
       return result;
     },
@@ -80,6 +82,7 @@ export function useAuth() {
 
   const signout = useCallback(async () => {
     await api.post<undefined>("/auth/signout");
+    clearSessionToken();
     await mutate(undefined, { revalidate: false });
   }, [mutate]);
 

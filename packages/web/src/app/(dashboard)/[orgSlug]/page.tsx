@@ -15,6 +15,15 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -30,6 +39,10 @@ export default function OrgDashboardPage({
 }) {
   const { orgSlug } = use(params);
   const [search, setSearch] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDesc, setNewDesc] = useState("");
+  const [creating, setCreating] = useState(false);
   const { organizations } = useOrganizations();
 
   const org = useMemo(
@@ -37,14 +50,55 @@ export default function OrgDashboardPage({
     [organizations, orgSlug]
   );
 
-  const { projects, isLoading } = useProjects(org?.id);
+  const { projects, isLoading, createProject } = useProjects(org?.id);
 
   const filtered = projects.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase())
   );
 
+  const handleCreate = async () => {
+    if (!newName.trim()) return;
+    setCreating(true);
+    try {
+      await createProject(newName.trim(), newDesc.trim() || undefined);
+      setDialogOpen(false);
+      setNewName("");
+      setNewDesc("");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const createDialog = (
+    <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Create project</DialogTitle>
+          <DialogDescription>Add a new project to {org?.name ?? orgSlug}.</DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="name">Name</Label>
+            <Input id="name" placeholder="My Project" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="desc">Description</Label>
+            <Input id="desc" placeholder="Optional description" value={newDesc} onChange={(e) => setNewDesc(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handleCreate} disabled={creating || !newName.trim()}>
+            {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+            Create
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
   return (
     <div className="flex-1 overflow-auto">
+      {createDialog}
       <div className="border-b border-border px-6 py-4">
         <div className="flex items-center justify-between">
           <div>
@@ -53,7 +107,7 @@ export default function OrgDashboardPage({
               Manage projects in {org?.name ?? orgSlug}
             </p>
           </div>
-          <Button size="sm">
+          <Button size="sm" onClick={() => setDialogOpen(true)}>
             <Plus className="mr-1 h-3.5 w-3.5" /> New Project
           </Button>
         </div>
@@ -86,7 +140,7 @@ export default function OrgDashboardPage({
                 : "No projects match your search."}
             </p>
             {projects.length === 0 && (
-              <Button size="sm" className="mt-4">
+              <Button size="sm" className="mt-4" onClick={() => setDialogOpen(true)}>
                 <Plus className="mr-1 h-3.5 w-3.5" /> Create Project
               </Button>
             )}

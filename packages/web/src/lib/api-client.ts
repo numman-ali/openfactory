@@ -7,6 +7,25 @@
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
+// ─── Session Token Persistence ───────────────────────────────────────────────
+
+const TOKEN_KEY = "openfactory_session_token";
+
+export function getSessionToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setSessionToken(token: string): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearSessionToken(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(TOKEN_KEY);
+}
+
 /** Fastify-style error response shape */
 export interface ApiErrorBody {
   statusCode: number;
@@ -51,8 +70,10 @@ export async function apiRequest<T>(
 ): Promise<T> {
   const { body, params, headers: extraHeaders, ...rest } = options;
 
+  const token = getSessionToken();
   const headers: Record<string, string> = {
     ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...Object.fromEntries(
       Object.entries(extraHeaders ?? {}).filter(
         (entry): entry is [string, string] => typeof entry[1] === "string"
@@ -129,9 +150,13 @@ export async function streamSSE(
 ): Promise<void> {
   const url = buildUrl(path);
 
+  const sseToken = getSessionToken();
   const response = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(sseToken ? { Authorization: `Bearer ${sseToken}` } : {}),
+    },
     credentials: "include",
     body: JSON.stringify(body),
     signal: options.signal,

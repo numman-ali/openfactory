@@ -152,13 +152,13 @@ export function ChatPanel({
     const abortController = new AbortController();
     abortRef.current = abortController;
 
+    const isValidUUID = contextDocumentId && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(contextDocumentId);
     await streamSSE(
       `/projects/${projectId}/agents/stream`,
       {
         agentType,
-        projectId,
         message: content,
-        contextDocumentId,
+        ...(isValidUUID ? { contextDocumentId } : {}),
       },
       {
         signal: abortController.signal,

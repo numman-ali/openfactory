@@ -262,6 +262,7 @@ function StandaloneEditor({
   onBlur,
 }: RichEditorProps) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({
         codeBlock: false,

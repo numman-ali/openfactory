@@ -39,12 +39,12 @@ interface ProjectDetail {
 export function useProjects(orgId: string | undefined) {
   const { data, error, isLoading, mutate } = useSWR<{
     projects: ProjectListItem[];
-  }>(orgId ? `/organizations/${orgId}/projects` : null);
+  }>(orgId ? `/${orgId}/projects` : null);
 
   const createProject = useCallback(
     async (name: string, description?: string) => {
       if (!orgId) return;
-      const result = await api.post(`/organizations/${orgId}/projects`, {
+      const result = await api.post(`/${orgId}/projects`, {
         name,
         description,
       });
