@@ -18,6 +18,7 @@ import foundryRoutes from "./routes/foundry.js";
 import plannerRoutes from "./routes/planner.js";
 import validatorRoutes from "./routes/validator.js";
 import graphRoutes from "./routes/graph.js";
+import agentRoutes from "./routes/agents.js";
 
 export async function buildApp() {
   const app = Fastify({
@@ -52,6 +53,7 @@ export async function buildApp() {
   await app.register(plannerRoutes, { prefix: "/api/projects" });
   await app.register(validatorRoutes, { prefix: "/api/projects" });
   await app.register(graphRoutes, { prefix: "/api/projects" });
+  await app.register(agentRoutes, { prefix: "/api/projects" });
 
   return app;
 }
