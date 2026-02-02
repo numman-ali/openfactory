@@ -6,12 +6,12 @@
  * streaming via SSE, structured output, and human-in-the-loop confirmation.
  */
 
-import { streamText, type CoreMessage, type StreamTextResult } from 'ai';
+import { streamText, type CoreMessage } from 'ai';
 import { createModel, getDefaultConfig } from './providers/index.js';
 import { createAgentTools, AGENT_TOOL_SETS, CONFIRMATION_REQUIRED_TOOLS } from './tools/index.js';
 import { buildSystemPrompt, type PromptContext } from './prompts/index.js';
 import type { ToolContext } from './tools/index.js';
-import type { AgentRequest, AgentType, AgentStreamEvent } from '@repo/shared/types/agent';
+import type { AgentRequest, AgentType, AgentStreamEvent } from '@repo/shared/types';
 
 export interface OrchestratorDeps {
   toolContext: ToolContext;
@@ -74,8 +74,9 @@ export async function executeAgent(
   return createEventStream(result, convId, deps);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- StreamTextResult generic params vary by tool set
 function createEventStream(
-  result: StreamTextResult<Record<string, unknown>>,
+  result: { fullStream: AsyncIterable<any> },
   conversationId: string,
   deps: OrchestratorDeps
 ): ReadableStream<AgentStreamEvent> {
@@ -83,38 +84,47 @@ function createEventStream(
     async start(controller) {
       try {
         for await (const part of result.fullStream) {
-          switch (part.type) {
+          const p = part as Record<string, unknown>;
+          switch (p.type) {
             case 'text-delta':
-              controller.enqueue({ type: 'text-delta', content: part.textDelta });
+              controller.enqueue({ type: 'text-delta', content: p.textDelta as string });
               break;
             case 'tool-call':
-              if (CONFIRMATION_REQUIRED_TOOLS.has(part.toolName)) {
+              if (CONFIRMATION_REQUIRED_TOOLS.has(p.toolName as string)) {
                 controller.enqueue({
                   type: 'confirmation-required',
-                  toolName: part.toolName,
-                  args: part.args as Record<string, unknown>,
-                  description: `The agent wants to execute ${part.toolName}. Please review and confirm.`,
+                  toolName: p.toolName as string,
+                  args: p.args as Record<string, unknown>,
+                  description: `The agent wants to execute ${p.toolName as string}. Please review and confirm.`,
                 } as AgentStreamEvent);
               } else {
-                controller.enqueue({ type: 'tool-call', toolName: part.toolName, args: part.args as Record<string, unknown> } as AgentStreamEvent);
+                controller.enqueue({ type: 'tool-call', toolName: p.toolName as string, args: p.args as Record<string, unknown> } as AgentStreamEvent);
               }
               break;
             case 'tool-result':
-              controller.enqueue({ type: 'tool-result', toolName: part.toolName, result: part.result } as AgentStreamEvent);
+              controller.enqueue({ type: 'tool-result', toolName: p.toolName as string, result: p.result } as AgentStreamEvent);
               break;
             case 'error':
-              controller.enqueue({ type: 'error', message: part.error instanceof Error ? part.error.message : 'Unknown error' });
+              controller.enqueue({ type: 'error', message: (p.error as Error)?.message ?? 'Unknown error' });
               break;
-            case 'finish':
-              await deps.saveMessage(conversationId, {
-                role: 'assistant', content: part.text ?? '',
-                inputTokens: part.usage?.promptTokens, outputTokens: part.usage?.completionTokens, model: undefined,
-              } as CoreMessage & { inputTokens?: number; outputTokens?: number; model?: string });
+            case 'step-finish': {
+              const usage = p.usage as { promptTokens?: number; completionTokens?: number } | undefined;
+              if (usage) {
+                await deps.saveMessage(conversationId, {
+                  role: 'assistant', content: '',
+                  inputTokens: usage.promptTokens, outputTokens: usage.completionTokens, model: undefined,
+                } as CoreMessage & { inputTokens?: number; outputTokens?: number; model?: string });
+              }
+              break;
+            }
+            case 'finish': {
+              const finishUsage = p.usage as { promptTokens?: number; completionTokens?: number } | undefined;
               controller.enqueue({
                 type: 'done',
-                usage: part.usage ? { inputTokens: part.usage.promptTokens, outputTokens: part.usage.completionTokens, model: 'unknown' } : undefined,
+                usage: finishUsage ? { inputTokens: finishUsage.promptTokens ?? 0, outputTokens: finishUsage.completionTokens ?? 0, model: 'unknown' } : undefined,
               });
               break;
+            }
           }
         }
       } catch (error) {

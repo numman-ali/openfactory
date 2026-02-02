@@ -8,7 +8,7 @@
 
 import { Queue, Worker, type Job, type ConnectionOptions } from 'bullmq';
 import type { GraphService, GraphRepository } from './index.js';
-import type { GraphEntityType } from '@repo/shared/types/graph';
+type GraphEntityType = "document" | "work_order" | "feature" | "feedback_item" | "artifact" | "codebase_file";
 import { DriftDetector } from './drift-detector.js';
 import { ChangePropagator } from './propagator.js';
 import { AlertGenerator } from './alerts.js';
@@ -236,7 +236,7 @@ async function handlePropagateChange(
 async function handleCodeDriftCheck(
   data: CodeDriftCheckJobData,
   deps: GraphWorkerDeps,
-  propagator: ChangePropagator,
+  _propagator: ChangePropagator,
 ): Promise<GraphJobResult> {
   let alertsCreated = 0;
   let nodesAffected = 0;

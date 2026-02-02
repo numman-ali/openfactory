@@ -6,8 +6,9 @@
  * Batches requests to stay within rate limits with exponential backoff retry.
  */
 
-import { embedMany } from 'ai';
-import { getEmbeddingConfig, createModel } from '../agents/providers/index.js';
+import { embedMany, type EmbeddingModel } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
+import { getEmbeddingConfig } from '../agents/providers/index.js';
 import type { EmbeddingClient } from './index.js';
 
 // ---------------------------------------------------------------------------
@@ -40,7 +41,7 @@ export interface EmbeddingClientConfig {
  */
 export function createEmbeddingClient(config?: EmbeddingClientConfig): EmbeddingClient {
   const embeddingConfig = getEmbeddingConfig();
-  const model = createModel(embeddingConfig);
+  const model = createEmbeddingModel(embeddingConfig);
   const batchSize = config?.batchSize ?? DEFAULT_BATCH_SIZE;
   const interBatchDelay = config?.interBatchDelayMs ?? INTER_BATCH_DELAY_MS;
   const maxRetries = config?.maxRetries ?? MAX_RETRIES;
@@ -73,7 +74,7 @@ export function createEmbeddingClient(config?: EmbeddingClientConfig): Embedding
 // ---------------------------------------------------------------------------
 
 async function embedBatchWithRetry(
-  model: ReturnType<typeof createModel>,
+  model: EmbeddingModel<string>,
   batch: string[],
   maxRetries: number,
 ): Promise<number[][]> {
@@ -101,4 +102,15 @@ async function embedBatchWithRetry(
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Create an embedding model from the embedding config.
+ * Currently only OpenAI embeddings are supported.
+ */
+function createEmbeddingModel(config: { provider: string; model: string }): EmbeddingModel<string> {
+  const provider = createOpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+  return provider.embedding(config.model);
 }

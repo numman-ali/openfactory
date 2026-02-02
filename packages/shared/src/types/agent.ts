@@ -64,10 +64,10 @@ export type AgentToolName = z.infer<typeof AgentToolName>;
 
 export const AgentStreamEvent = z.discriminatedUnion('type', [
   z.object({ type: z.literal('text-delta'), content: z.string() }),
-  z.object({ type: z.literal('tool-call'), toolName: AgentToolName, args: z.record(z.unknown()) }),
+  z.object({ type: z.literal('tool-call'), toolName: AgentToolName, args: z.record(z.string(), z.unknown()) }),
   z.object({ type: z.literal('tool-result'), toolName: AgentToolName, result: z.unknown() }),
   z.object({ type: z.literal('edit-suggestion'), suggestion: EditSuggestion }),
-  z.object({ type: z.literal('confirmation-required'), toolName: AgentToolName, args: z.record(z.unknown()), description: z.string() }),
+  z.object({ type: z.literal('confirmation-required'), toolName: AgentToolName, args: z.record(z.string(), z.unknown()), description: z.string() }),
   z.object({ type: z.literal('error'), message: z.string() }),
   z.object({ type: z.literal('done'), usage: z.object({ inputTokens: z.number().int(), outputTokens: z.number().int(), model: z.string() }).optional() }),
 ]);
@@ -87,7 +87,7 @@ export const AgentRequest = z.object({
   attachmentIds: z.array(z.string().uuid()).optional(),
   confirmations: z.array(z.object({
     toolName: AgentToolName,
-    args: z.record(z.unknown()),
+    args: z.record(z.string(), z.unknown()),
     approved: z.boolean(),
   })).optional(),
 });

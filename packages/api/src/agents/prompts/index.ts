@@ -5,7 +5,7 @@
  * Versioned system prompts for each agent type.
  */
 
-import type { AgentType } from '@repo/shared/types/agent';
+import type { AgentType } from '@repo/shared/types';
 
 export const PROMPT_VERSION = '1.0.0';
 

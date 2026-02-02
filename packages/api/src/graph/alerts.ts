@@ -7,7 +7,9 @@
  */
 
 import { z } from 'zod';
-import type { DriftAlert, DriftSeverity } from '@repo/shared/types/graph';
+import type { DriftAlert } from './index.js';
+
+type DriftSeverity = "low" | "medium" | "high";
 import type { GraphRepository } from './index.js';
 import type { DriftReport, DriftReportEntry } from './drift-detector.js';
 
@@ -92,7 +94,7 @@ export class AlertGenerator {
   async getAlertSummary(projectId: string): Promise<AlertSummary> {
     const rawAlerts = await this.repo.listDriftAlerts(projectId, { status: 'open' });
 
-    const bySeverity = { high: 0, medium: 0, low: 0 };
+    const bySeverity = { high: 0, medium: 0, low: 0 } as Record<DriftSeverity, number>;
     const byType: Record<string, number> = {
       BLUEPRINT_STALE: 0,
       WORK_ORDER_OUTDATED: 0,
@@ -116,7 +118,7 @@ export class AlertGenerator {
         severity,
         description: alert.description,
         suggestedAction: buildSuggestedAction(alert.driftType, alertType),
-        createdAt: alert.createdAt,
+        createdAt: alert.createdAt ?? new Date().toISOString(),
       };
     });
 
@@ -169,7 +171,7 @@ function classifyAlertType(driftType: string): AlertType {
   }
 }
 
-function buildSuggestedAction(driftType: string, alertType: AlertType): string {
+function buildSuggestedAction(_driftType: string, alertType: AlertType): string {
   const actions: Record<AlertType, string> = {
     BLUEPRINT_STALE: 'Open the Foundry module and use the drift resolution workflow to sync the blueprint with current code.',
     WORK_ORDER_OUTDATED: 'Open the Planner module and use the sync workflow to update work orders against the latest blueprint.',

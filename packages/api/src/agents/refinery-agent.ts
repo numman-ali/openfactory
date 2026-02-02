@@ -4,7 +4,7 @@
  */
 
 import { executeAgent, type OrchestratorDeps } from './orchestrator.js';
-import type { AgentRequest, AgentStreamEvent } from '@repo/shared/types/agent';
+import type { AgentRequest, AgentStreamEvent } from '@repo/shared/types';
 
 export async function executeRefineryAgent(request: Omit<AgentRequest, 'agentType'>, deps: OrchestratorDeps): Promise<ReadableStream<AgentStreamEvent>> {
   return executeAgent({ ...request, agentType: 'refinery' }, deps);

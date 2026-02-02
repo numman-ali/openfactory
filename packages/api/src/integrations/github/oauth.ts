@@ -76,7 +76,7 @@ export async function registerOAuthRoutes(
   app.get(
     "/api/integrations/github/callback",
     async (request: FastifyRequest<{ Querystring: OAuthCallbackQuery }>, reply: FastifyReply) => {
-      const { installation_id, state, setup_action } = request.query;
+      const { installation_id, state, setup_action: _setup_action } = request.query;
 
       if (!state || !stateStore.has(state)) {
         return reply.code(400).send({ error: "Invalid or expired state parameter" });

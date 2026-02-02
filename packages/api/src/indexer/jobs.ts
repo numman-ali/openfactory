@@ -138,11 +138,11 @@ export function createIndexerWorker(
     async (job: Job<IndexJobData, IndexResult>) => {
       switch (job.data.type) {
         case 'initial_index':
-          return handleInitialIndex(job, deps);
+          return handleInitialIndex(job as Job<InitialIndexJobData, IndexResult>, deps);
         case 'reindex':
-          return handleReindex(job, deps);
+          return handleReindex(job as Job<ReindexJobData, IndexResult>, deps);
         case 'smart_reindex':
-          return handleSmartReindex(job, deps);
+          return handleSmartReindex(job as Job<SmartReindexJobData, IndexResult>, deps);
       }
     },
     {

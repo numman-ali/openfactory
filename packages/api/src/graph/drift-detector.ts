@@ -7,15 +7,12 @@
  */
 
 import { z } from 'zod';
-import type {
-  GraphNode,
-  GraphEdge,
-  GraphEdgeType,
-  GraphEntityType,
-  DriftType,
-  DriftSeverity,
-} from '@repo/shared/types/graph';
-import type { GraphRepository } from './index.js';
+import type { GraphNode, GraphEdge, GraphRepository } from './index.js';
+
+type GraphEntityType = "document" | "work_order" | "feature" | "feedback_item" | "artifact" | "codebase_file";
+type GraphEdgeType = "derives_from" | "shared_context" | "implements" | "feedback_on" | "parent_of" | "references" | "blocks" | "related_to";
+type DriftType = "code_drift" | "requirements_drift" | "foundation_drift" | "work_order_drift";
+type DriftSeverity = "low" | "medium" | "high";
 
 // ---------------------------------------------------------------------------
 // Schemas

@@ -10,7 +10,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createOllama } from 'ollama-ai-provider';
 import type { LanguageModelV1 } from 'ai';
-import type { LLMConfig, LLMProvider } from '@repo/shared/types/agent';
+import type { LLMConfig, LLMProvider } from '@repo/shared/types';
 
 type ProviderFactory = (config: LLMConfig) => LanguageModelV1;
 
@@ -65,5 +65,6 @@ function getDefaultModel(provider: LLMProvider): string {
     case 'openai': return 'gpt-4o';
     case 'anthropic': return 'claude-sonnet-4-20250514';
     case 'ollama': return 'llama3.1';
+    default: throw new Error(`Unknown LLM provider: ${String(provider)}`);
   }
 }

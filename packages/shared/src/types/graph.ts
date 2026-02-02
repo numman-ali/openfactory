@@ -14,7 +14,7 @@ export const GraphNode = z.object({
   entityType: GraphEntityType,
   entityId: z.string().uuid(),
   label: z.string(),
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   contentHash: z.string().nullable(),
   lastSyncedAt: z.string().datetime().nullable(),
   createdAt: z.string().datetime(),
@@ -31,7 +31,7 @@ export const GraphEdge = z.object({
   sourceNodeId: z.string().uuid(),
   targetNodeId: z.string().uuid(),
   edgeType: GraphEdgeType,
-  metadata: z.record(z.unknown()).default({}),
+  metadata: z.record(z.string(), z.unknown()).default({}),
   createdAt: z.string().datetime(),
 });
 export type GraphEdge = z.infer<typeof GraphEdge>;

@@ -9,7 +9,7 @@
 
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import type { IndexedFile, IndexerRepository, GitHubClient, CodeParser, EmbeddingClient, CodeChunkWithEmbedding } from './index.js';
+import type { IndexerRepository, GitHubClient, CodeParser, EmbeddingClient, CodeChunkWithEmbedding } from './index.js';
 import { shouldSkipFile, formatChunkForEmbedding } from './index.js';
 
 // ---------------------------------------------------------------------------

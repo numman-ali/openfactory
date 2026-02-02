@@ -4,7 +4,7 @@
  */
 
 import { executeAgent, type OrchestratorDeps } from './orchestrator.js';
-import type { AgentRequest, AgentStreamEvent } from '@repo/shared/types/agent';
+import type { AgentRequest, AgentStreamEvent } from '@repo/shared/types';
 
 export type ExtractionStrategy = 'feature_slice' | 'specialist' | 'custom';
 

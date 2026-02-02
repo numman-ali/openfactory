@@ -8,7 +8,7 @@
  */
 
 import { z } from 'zod';
-import type { EmbeddingClient, SearchResult, IndexerRepository } from './index.js';
+import type { EmbeddingClient, IndexerRepository } from './index.js';
 
 // ---------------------------------------------------------------------------
 // Schemas
