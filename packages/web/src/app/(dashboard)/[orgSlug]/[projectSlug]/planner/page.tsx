@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type ColumnDef } from "@/components/data-table/data-table";
 import { AgentChatPanel, type ChatMessage } from "@/components/chat/agent-chat-panel";
+import { RichEditor } from "@/components/editor";
 
 interface WorkOrder {
   id: string;
@@ -147,11 +148,21 @@ export default function PlannerPage() {
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-1">Description</p>
-              <p className="text-sm text-muted-foreground">TipTap editor for rich description will render here.</p>
+              <RichEditor
+                placeholder="Add a description..."
+                showToolbar={false}
+                showBubbleMenu
+                className="text-sm"
+              />
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-1">Implementation Plan</p>
-              <p className="text-sm text-muted-foreground">Step-by-step implementation plan will render here.</p>
+              <RichEditor
+                placeholder="Add implementation steps..."
+                showToolbar={false}
+                showBubbleMenu
+                className="text-sm"
+              />
             </div>
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-1">Knowledge Graph</p>

@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { AgentChatPanel, type ChatMessage } from "@/components/chat/agent-chat-panel";
+import { RichEditor } from "@/components/editor";
 import { cn } from "@/lib/utils";
 
 type BlueprintType = "foundation_blueprint" | "system_diagram" | "feature_blueprint";
@@ -118,9 +119,12 @@ export default function FoundryPage() {
             </div>
             <div className="flex-1 overflow-auto p-6">
               <div className="mx-auto max-w-3xl">
-                <p className="text-muted-foreground">
-                  TipTap editor with Mermaid diagram support will render here.
-                </p>
+                <RichEditor
+                  placeholder="Start writing your blueprint..."
+                  showToolbar
+                  showBubbleMenu
+                  showWordCount
+                />
               </div>
             </div>
           </>

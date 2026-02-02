@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { AgentChatPanel, type ChatMessage } from "@/components/chat/agent-chat-panel";
+import { RichEditor } from "@/components/editor";
 import { cn } from "@/lib/utils";
 
 type DocType = "product_overview" | "feature_requirements" | "technical_requirements";
@@ -119,9 +120,12 @@ export default function RefineryPage() {
             </div>
             <div className="flex-1 overflow-auto p-6">
               <div className="mx-auto max-w-3xl">
-                <p className="text-muted-foreground">
-                  TipTap editor will render here with the document content.
-                </p>
+                <RichEditor
+                  placeholder="Start writing your requirements..."
+                  showToolbar
+                  showBubbleMenu
+                  showWordCount
+                />
               </div>
             </div>
           </>
