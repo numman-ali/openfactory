@@ -67,6 +67,7 @@ COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_module
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
 COPY --from=builder /app/packages/api/dist ./packages/api/dist
+COPY --from=builder /app/packages/api/drizzle ./packages/api/drizzle
 COPY --from=builder /app/packages/api/package.json ./packages/api/
 
 # Copy workspace config for pnpm resolution
