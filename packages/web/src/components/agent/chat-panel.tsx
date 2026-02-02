@@ -2,11 +2,51 @@
 "use client";
 
 import * as React from "react";
-import { Send, Bot, User, Loader2, Paperclip } from "lucide-react";
+import { Send, Bot, User, Loader2, Paperclip, Wrench, FileEdit, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { streamSSE } from "@/lib/api-client";
+
+// ─── Agent Types (mirrored from @repo/shared) ───────────────────────────────
+
+export type AgentType = "refinery" | "foundry" | "planner" | "validator";
+
+export interface EditDiff {
+  id: string;
+  sectionPath?: string;
+  operation: "insert" | "replace" | "delete";
+  from?: number;
+  to?: number;
+  newContent?: string;
+  oldContent?: string;
+  explanation?: string;
+}
+
+export interface EditSuggestion {
+  id: string;
+  documentId: string;
+  agentType: AgentType;
+  diffs: EditDiff[];
+  summary: string;
+  contextSources?: string[];
+}
+
+interface AgentStreamEvent {
+  type: string;
+  content?: string;
+  toolName?: string;
+  args?: Record<string, unknown>;
+  result?: unknown;
+  suggestion?: EditSuggestion;
+  description?: string;
+  message?: string;
+  usage?: { inputTokens: number; outputTokens: number; model: string };
+}
+
+// ─── Message Types ───────────────────────────────────────────────────────────
 
 export interface ChatMessage {
   id: string;
@@ -15,6 +55,9 @@ export interface ChatMessage {
   timestamp: Date;
   isStreaming?: boolean;
   attachments?: ChatAttachment[];
+  toolCalls?: ToolCallInfo[];
+  editSuggestion?: EditSuggestion;
+  confirmationRequired?: ConfirmationInfo;
 }
 
 export interface ChatAttachment {
@@ -24,6 +67,19 @@ export interface ChatAttachment {
   url?: string;
 }
 
+export interface ToolCallInfo {
+  toolName: string;
+  args: Record<string, unknown>;
+  result?: unknown;
+  status: "pending" | "done" | "error";
+}
+
+export interface ConfirmationInfo {
+  toolName: string;
+  args: Record<string, unknown>;
+  description: string;
+}
+
 export interface AgentAction {
   id: string;
   label: string;
@@ -31,30 +87,37 @@ export interface AgentAction {
   icon?: React.ReactNode;
 }
 
+// ─── Component Props ─────────────────────────────────────────────────────────
+
 interface ChatPanelProps {
+  projectId: string | undefined;
+  agentType: AgentType;
   title?: string;
-  messages: ChatMessage[];
   actions?: AgentAction[];
-  isLoading?: boolean;
-  onSendMessage: (content: string, attachments?: File[]) => void;
   onActionClick?: (actionId: string) => void;
+  onEditSuggestion?: (suggestion: EditSuggestion) => void;
+  contextDocumentId?: string;
   className?: string;
 }
 
 export function ChatPanel({
+  projectId,
+  agentType,
   title = "Agent",
-  messages,
   actions,
-  isLoading = false,
-  onSendMessage,
   onActionClick,
+  onEditSuggestion,
+  contextDocumentId,
   className,
 }: ChatPanelProps) {
+  const [messages, setMessages] = React.useState<ChatMessage[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
   const [input, setInput] = React.useState("");
   const [pendingFiles, setPendingFiles] = React.useState<File[]>([]);
   const scrollRef = React.useRef<HTMLDivElement>(null);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const abortRef = React.useRef<AbortController | null>(null);
 
   React.useEffect(() => {
     if (scrollRef.current) {
@@ -62,11 +125,176 @@ export function ChatPanel({
     }
   }, [messages]);
 
+  async function sendMessage(content: string) {
+    if (!projectId || !content.trim() || isLoading) return;
+
+    const userMsg: ChatMessage = {
+      id: `user-${Date.now()}`,
+      role: "user",
+      content,
+      timestamp: new Date(),
+    };
+
+    const assistantId = `assistant-${Date.now()}`;
+    const assistantMsg: ChatMessage = {
+      id: assistantId,
+      role: "assistant",
+      content: "",
+      timestamp: new Date(),
+      isStreaming: true,
+      toolCalls: [],
+    };
+
+    setMessages((prev) => [...prev, userMsg, assistantMsg]);
+    setIsLoading(true);
+
+    abortRef.current?.abort();
+    const abortController = new AbortController();
+    abortRef.current = abortController;
+
+    await streamSSE(
+      `/projects/${projectId}/agents/stream`,
+      {
+        agentType,
+        projectId,
+        message: content,
+        contextDocumentId,
+      },
+      {
+        signal: abortController.signal,
+        onEvent: (raw) => {
+          const evt = raw as AgentStreamEvent;
+          switch (evt.type) {
+            case "text-delta":
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? { ...m, content: m.content + evt.content }
+                    : m
+                )
+              );
+              break;
+
+            case "tool-call":
+              if (evt.toolName && evt.args) {
+                const toolName = evt.toolName;
+                const args = evt.args;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? {
+                          ...m,
+                          toolCalls: [
+                            ...(m.toolCalls ?? []),
+                            { toolName, args, status: "pending" as const },
+                          ],
+                        }
+                      : m
+                  )
+                );
+              }
+              break;
+
+            case "tool-result":
+              setMessages((prev) =>
+                prev.map((m) => {
+                  if (m.id !== assistantId) return m;
+                  const calls = (m.toolCalls ?? []).map((tc) =>
+                    tc.toolName === evt.toolName && tc.status === "pending"
+                      ? { ...tc, result: evt.result, status: "done" as const }
+                      : tc
+                  );
+                  return { ...m, toolCalls: calls };
+                })
+              );
+              break;
+
+            case "edit-suggestion":
+              if (evt.suggestion) {
+                const suggestion = evt.suggestion;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? { ...m, editSuggestion: suggestion }
+                      : m
+                  )
+                );
+                onEditSuggestion?.(suggestion);
+              }
+              break;
+
+            case "confirmation-required":
+              if (evt.toolName && evt.args && evt.description) {
+                const toolName = evt.toolName;
+                const args = evt.args;
+                const description = evt.description;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === assistantId
+                      ? {
+                          ...m,
+                          confirmationRequired: { toolName, args, description },
+                        }
+                      : m
+                  )
+                );
+              }
+              break;
+
+            case "error":
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId
+                    ? {
+                        ...m,
+                        content: m.content + `\nError: ${evt.message}`,
+                        isStreaming: false,
+                      }
+                    : m
+                )
+              );
+              break;
+
+            case "done":
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId ? { ...m, isStreaming: false } : m
+                )
+              );
+              break;
+          }
+        },
+        onError: (err) => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId
+                ? {
+                    ...m,
+                    content: m.content || `Error: ${err.message}`,
+                    isStreaming: false,
+                  }
+                : m
+            )
+          );
+          setIsLoading(false);
+        },
+        onDone: () => {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantId ? { ...m, isStreaming: false } : m
+            )
+          );
+          setIsLoading(false);
+        },
+      }
+    );
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
-    onSendMessage(trimmed, pendingFiles.length > 0 ? pendingFiles : undefined);
+    sendMessage(trimmed);
     setInput("");
     setPendingFiles([]);
     if (textareaRef.current) {
@@ -97,6 +325,14 @@ export function ChatPanel({
     setPendingFiles((prev) => prev.filter((_, i) => i !== index));
   }
 
+  function handleCancel() {
+    abortRef.current?.abort();
+    setIsLoading(false);
+    setMessages((prev) =>
+      prev.map((m) => (m.isStreaming ? { ...m, isStreaming: false } : m))
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -109,6 +345,11 @@ export function ChatPanel({
           <Bot className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">{title}</span>
         </div>
+        {isLoading && (
+          <Button variant="ghost" size="sm" onClick={handleCancel} className="text-xs">
+            Stop
+          </Button>
+        )}
       </div>
 
       <ScrollArea className="flex-1 p-4" ref={scrollRef}>
@@ -141,48 +382,101 @@ export function ChatPanel({
         ) : (
           <div className="flex flex-col gap-4">
             {messages.map((message) => (
-              <div
-                key={message.id}
-                className={cn(
-                  "flex gap-3",
-                  message.role === "user" && "flex-row-reverse"
-                )}
-              >
-                <Avatar className="h-7 w-7 shrink-0">
-                  <AvatarFallback className="text-xs">
-                    {message.role === "user" ? (
-                      <User className="h-3.5 w-3.5" />
-                    ) : (
-                      <Bot className="h-3.5 w-3.5" />
-                    )}
-                  </AvatarFallback>
-                </Avatar>
+              <div key={message.id}>
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-lg px-3 py-2 text-sm",
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground"
+                    "flex gap-3",
+                    message.role === "user" && "flex-row-reverse"
                   )}
                 >
-                  <div className="whitespace-pre-wrap">{message.content}</div>
-                  {message.isStreaming && (
-                    <span className="ml-1 inline-block animate-pulse">|</span>
-                  )}
-                  {message.attachments && message.attachments.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {message.attachments.map((att) => (
-                        <span
-                          key={att.id}
-                          className="inline-flex items-center gap-1 rounded bg-background/50 px-2 py-0.5 text-xs"
-                        >
-                          <Paperclip className="h-3 w-3" />
-                          {att.name}
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <Avatar className="h-7 w-7 shrink-0">
+                    <AvatarFallback className="text-xs">
+                      {message.role === "user" ? (
+                        <User className="h-3.5 w-3.5" />
+                      ) : (
+                        <Bot className="h-3.5 w-3.5" />
+                      )}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div
+                    className={cn(
+                      "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+                      message.role === "user"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-foreground"
+                    )}
+                  >
+                    <div className="whitespace-pre-wrap">{message.content}</div>
+                    {message.isStreaming && (
+                      <span className="ml-1 inline-block animate-pulse">|</span>
+                    )}
+                    {message.attachments && message.attachments.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {message.attachments.map((att) => (
+                          <span
+                            key={att.id}
+                            className="inline-flex items-center gap-1 rounded bg-background/50 px-2 py-0.5 text-xs"
+                          >
+                            <Paperclip className="h-3 w-3" />
+                            {att.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* Tool calls */}
+                {message.toolCalls && message.toolCalls.length > 0 && (
+                  <div className="ml-10 mt-2 space-y-1">
+                    {message.toolCalls.map((tc, idx) => (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-2 rounded border border-border px-2 py-1 text-xs text-muted-foreground"
+                      >
+                        <Wrench className="h-3 w-3 shrink-0" />
+                        <span className="font-mono">{tc.toolName}</span>
+                        {tc.status === "pending" && (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        )}
+                        {tc.status === "done" && (
+                          <Badge variant="secondary" className="text-[10px] px-1 py-0">
+                            done
+                          </Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Edit suggestion */}
+                {message.editSuggestion && (
+                  <div className="ml-10 mt-2 rounded border border-border p-2">
+                    <div className="flex items-center gap-2 text-xs font-medium">
+                      <FileEdit className="h-3.5 w-3.5 text-blue-500" />
+                      Edit Suggestion
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {message.editSuggestion.summary}
+                    </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {message.editSuggestion.diffs.length} change{message.editSuggestion.diffs.length !== 1 ? "s" : ""}
+                    </p>
+                  </div>
+                )}
+
+                {/* Confirmation required */}
+                {message.confirmationRequired && (
+                  <div className="ml-10 mt-2 rounded border border-yellow-300 bg-yellow-50 p-2 dark:border-yellow-700 dark:bg-yellow-950">
+                    <div className="flex items-center gap-2 text-xs font-medium text-yellow-800 dark:text-yellow-200">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Confirmation Required
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {message.confirmationRequired.description}
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
             {isLoading && !messages.some((m) => m.isStreaming) && (

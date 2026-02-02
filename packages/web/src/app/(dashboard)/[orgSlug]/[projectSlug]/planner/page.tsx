@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: AGPL-3.0
 "use client";
 
-import { useState } from "react";
-import { Plus, Filter, Link2, SlidersHorizontal } from "lucide-react";
+import { use, useState } from "react";
+import { Plus, Filter, Link2, SlidersHorizontal, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataTable, type ColumnDef } from "@/components/data-table/data-table";
-import { AgentChatPanel, type ChatMessage } from "@/components/chat/agent-chat-panel";
+import { AgentChatPanel } from "@/components/chat/agent-chat-panel";
 import { RichEditor } from "@/components/editor";
+import { useProjectContext } from "@/lib/hooks/useProjectContext";
+import { useWorkOrders } from "@/lib/hooks/useWorkOrders";
+import { useAgentChat } from "@/lib/hooks/useAgentChat";
 
-interface WorkOrder {
+interface WorkOrderRow {
   id: string;
   title: string;
-  status: "backlog" | "ready" | "in_progress" | "in_review" | "done";
+  status: string;
   phase: string | null;
   feature: string | null;
   assignees: string[];
@@ -35,7 +38,7 @@ const STATUS_LABELS: Record<string, string> = {
   done: "Done",
 };
 
-const columns: ColumnDef<WorkOrder, unknown>[] = [
+const columns: ColumnDef<WorkOrderRow, unknown>[] = [
   {
     accessorKey: "title",
     header: "Title",
@@ -44,8 +47,8 @@ const columns: ColumnDef<WorkOrder, unknown>[] = [
     accessorKey: "status",
     header: "Status",
     cell: ({ row }) => (
-      <Badge variant="secondary" className={STATUS_COLORS[row.original.status]}>
-        {STATUS_LABELS[row.original.status]}
+      <Badge variant="secondary" className={STATUS_COLORS[row.original.status] ?? ""}>
+        {STATUS_LABELS[row.original.status] ?? row.original.status}
       </Badge>
     ),
   },
@@ -71,30 +74,41 @@ const columns: ColumnDef<WorkOrder, unknown>[] = [
   },
 ];
 
-export default function PlannerPage() {
-  const [workOrders] = useState<WorkOrder[]>([]);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+export default function PlannerPage({
+  params,
+}: {
+  params: Promise<{ orgSlug: string; projectSlug: string }>;
+}) {
+  const { orgSlug, projectSlug } = use(params);
+  const { projectId } = useProjectContext(orgSlug, projectSlug);
+  const { workOrders, isLoading, totalCount } = useWorkOrders(projectId);
+  const { messages: chatMessages, isLoading: chatLoading, sendMessage } = useAgentChat(projectId);
   const [showChat, setShowChat] = useState(false);
-  const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrder | null>(null);
+  const [selectedWorkOrder, setSelectedWorkOrder] = useState<WorkOrderRow | null>(null);
+
+  const tableData: WorkOrderRow[] = workOrders.map((wo) => ({
+    id: wo.id,
+    title: wo.title,
+    status: wo.status,
+    phase: wo.phase?.name ?? null,
+    feature: wo.feature?.name ?? null,
+    assignees: wo.assignees.map((a) => a.name),
+    deliverableType: wo.deliverableType,
+  }));
 
   const handleSendMessage = (content: string) => {
-    const msg: ChatMessage = {
-      id: Date.now().toString(),
-      role: "user",
-      content,
-      timestamp: new Date(),
-    };
-    setChatMessages((prev) => [...prev, msg]);
+    sendMessage(content, "planner");
   };
 
   return (
     <div className="flex h-[calc(100vh-3.5rem)]">
-      {/* Main Table Area */}
       <div className="flex flex-1 flex-col">
         <div className="flex items-center justify-between border-b border-border px-6 py-3">
           <div className="flex items-center gap-3">
             <h1 className="text-lg font-semibold">Planner</h1>
-            <Badge variant="secondary">{workOrders.length} work orders</Badge>
+            <Badge variant="secondary">
+              {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : `${totalCount} work orders`}
+            </Badge>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm">
@@ -116,17 +130,22 @@ export default function PlannerPage() {
         </div>
 
         <div className="flex-1 overflow-auto p-6">
-          <DataTable
-            columns={columns}
-            data={workOrders}
-            getRowId={(row: WorkOrder) => row.id}
-            searchPlaceholder="Search work orders..."
-            searchColumn="title"
-          />
+          {isLoading ? (
+            <div className="flex justify-center py-20">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={tableData}
+              getRowId={(row: WorkOrderRow) => row.id}
+              searchPlaceholder="Search work orders..."
+              searchColumn="title"
+            />
+          )}
         </div>
       </div>
 
-      {/* Work Order Detail Panel */}
       {selectedWorkOrder && (
         <div className="w-96 border-l border-border overflow-auto">
           <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -142,8 +161,8 @@ export default function PlannerPage() {
           <div className="p-4 space-y-4">
             <div>
               <p className="text-xs font-medium text-muted-foreground mb-1">Status</p>
-              <Badge variant="secondary" className={STATUS_COLORS[selectedWorkOrder.status]}>
-                {STATUS_LABELS[selectedWorkOrder.status]}
+              <Badge variant="secondary" className={STATUS_COLORS[selectedWorkOrder.status] ?? ""}>
+                {STATUS_LABELS[selectedWorkOrder.status] ?? selectedWorkOrder.status}
               </Badge>
             </div>
             <div>
@@ -172,11 +191,11 @@ export default function PlannerPage() {
         </div>
       )}
 
-      {/* Agent Chat Panel */}
       {showChat && (
         <AgentChatPanel
           title="Planner Agent"
           messages={chatMessages}
+          isLoading={chatLoading}
           onSendMessage={handleSendMessage}
           className="w-80"
           actions={[

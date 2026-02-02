@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0
 "use client";
 
-import { use, useState } from "react";
+import { use, useState, useMemo } from "react";
 import Link from "next/link";
-import { Plus, FolderOpen, Search, MoreHorizontal } from "lucide-react";
+import { Plus, FolderOpen, Search, MoreHorizontal, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,18 +20,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-interface ProjectSummary {
-  id: string;
-  name: string;
-  slug: string;
-  description: string;
-  requirementsCount: number;
-  blueprintsCount: number;
-  workOrdersCount: number;
-  feedbackCount: number;
-  updatedAt: string;
-}
+import { useOrganizations } from "@/lib/hooks/useOrganizations";
+import { useProjects } from "@/lib/hooks/useProjects";
 
 export default function OrgDashboardPage({
   params,
@@ -39,8 +29,15 @@ export default function OrgDashboardPage({
   params: Promise<{ orgSlug: string }>;
 }) {
   const { orgSlug } = use(params);
-  const [projects] = useState<ProjectSummary[]>([]);
   const [search, setSearch] = useState("");
+  const { organizations } = useOrganizations();
+
+  const org = useMemo(
+    () => organizations.find((o) => o.slug === orgSlug),
+    [organizations, orgSlug]
+  );
+
+  const { projects, isLoading } = useProjects(org?.id);
 
   const filtered = projects.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase())
@@ -53,7 +50,7 @@ export default function OrgDashboardPage({
           <div>
             <h1 className="text-2xl font-bold">Projects</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Manage projects in {orgSlug}
+              Manage projects in {org?.name ?? orgSlug}
             </p>
           </div>
           <Button size="sm">
@@ -76,7 +73,11 @@ export default function OrgDashboardPage({
           <Badge variant="secondary">{projects.length} projects</Badge>
         </div>
 
-        {filtered.length === 0 ? (
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center py-20">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20">
             <FolderOpen className="h-12 w-12 text-muted-foreground/50" />
             <p className="mt-4 text-sm text-muted-foreground">
@@ -128,13 +129,12 @@ export default function OrgDashboardPage({
                   </CardHeader>
                   <CardContent>
                     <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span>{project.requirementsCount} reqs</span>
-                      <span>{project.blueprintsCount} blueprints</span>
-                      <span>{project.workOrdersCount} tasks</span>
-                      <span>{project.feedbackCount} feedback</span>
+                      <span>{project.documentCount} docs</span>
+                      <span>{project.featureCount} features</span>
+                      <span>{project.workOrderCount} tasks</span>
                     </div>
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Updated {project.updatedAt}
+                      Updated {new Date(project.updatedAt).toLocaleDateString()}
                     </p>
                   </CardContent>
                 </Card>

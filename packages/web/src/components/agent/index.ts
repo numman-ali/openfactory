@@ -4,6 +4,10 @@ export {
   type ChatMessage,
   type ChatAttachment,
   type AgentAction,
+  type AgentType,
+  type EditSuggestion,
+  type ToolCallInfo,
+  type ConfirmationInfo,
 } from "./chat-panel";
 export {
   AgentActions,

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0
 "use client";
 
-import { useState } from "react";
-import { Users, Shield, Key, Palette, CreditCard } from "lucide-react";
+import { use, useState, useMemo } from "react";
+import { Users, Shield, Key, Palette, CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,23 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-
-interface Member {
-  id: string;
-  name: string;
-  email: string;
-  role: "owner" | "admin" | "member";
-  joinedAt: string;
-}
-
-interface ApiKeyEntry {
-  id: string;
-  name: string;
-  prefix: string;
-  scopes: string[];
-  createdAt: string;
-  lastUsedAt: string | null;
-}
+import { useOrganizations, useOrganization, useOrgMembers } from "@/lib/hooks/useOrganizations";
 
 const ROLE_COLORS: Record<string, string> = {
   owner: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
@@ -41,10 +25,24 @@ const ROLE_COLORS: Record<string, string> = {
   member: "bg-muted text-muted-foreground",
 };
 
-export default function OrgSettingsPage() {
-  const [members] = useState<Member[]>([]);
-  const [apiKeys] = useState<ApiKeyEntry[]>([]);
+export default function OrgSettingsPage({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>;
+}) {
+  const { orgSlug } = use(params);
+  const { organizations } = useOrganizations();
+  const org = useMemo(
+    () => organizations.find((o) => o.slug === orgSlug),
+    [organizations, orgSlug]
+  );
+  const { organization, updateOrg } = useOrganization(org?.id);
+  const { members, isLoading: membersLoading } = useOrgMembers(org?.id);
+
   const [orgName, setOrgName] = useState("");
+
+  // Sync org name when loaded
+  const displayName = orgName || organization?.name || "";
 
   return (
     <div className="flex-1 overflow-auto">
@@ -75,7 +73,6 @@ export default function OrgSettingsPage() {
             </TabsTrigger>
           </TabsList>
 
-          {/* General Settings */}
           <TabsContent value="general" className="space-y-6">
             <Card>
               <CardHeader>
@@ -89,12 +86,19 @@ export default function OrgSettingsPage() {
                   <Label htmlFor="org-name">Name</Label>
                   <Input
                     id="org-name"
-                    value={orgName}
+                    value={displayName}
                     onChange={(e) => setOrgName(e.target.value)}
                     placeholder="My Organization"
                   />
                 </div>
-                <Button size="sm">Save</Button>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    if (orgName) updateOrg({ name: orgName });
+                  }}
+                >
+                  Save
+                </Button>
               </CardContent>
             </Card>
 
@@ -115,7 +119,6 @@ export default function OrgSettingsPage() {
             </Card>
           </TabsContent>
 
-          {/* Members */}
           <TabsContent value="members" className="space-y-6">
             <Card>
               <CardHeader>
@@ -130,7 +133,11 @@ export default function OrgSettingsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {members.length === 0 ? (
+                {membersLoading ? (
+                  <div className="flex justify-center py-8">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                ) : members.length === 0 ? (
                   <p className="py-8 text-center text-sm text-muted-foreground">
                     No members yet. Invite team members to collaborate.
                   </p>
@@ -154,7 +161,7 @@ export default function OrgSettingsPage() {
                         </div>
                         <Badge
                           variant="secondary"
-                          className={cn(ROLE_COLORS[member.role])}
+                          className={cn(ROLE_COLORS[member.role] ?? ROLE_COLORS.member)}
                         >
                           {member.role}
                         </Badge>
@@ -166,7 +173,6 @@ export default function OrgSettingsPage() {
             </Card>
           </TabsContent>
 
-          {/* API Keys */}
           <TabsContent value="api-keys" className="space-y-6">
             <Card>
               <CardHeader>
@@ -182,52 +188,14 @@ export default function OrgSettingsPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                {apiKeys.length === 0 ? (
-                  <p className="py-8 text-center text-sm text-muted-foreground">
-                    No API keys yet. Create one for the Validator feedback
-                    ingestion API.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {apiKeys.map((key) => (
-                      <div
-                        key={key.id}
-                        className="flex items-center justify-between rounded-lg border border-border p-3"
-                      >
-                        <div>
-                          <p className="text-sm font-medium">{key.name}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground font-mono">
-                            {key.prefix}...
-                          </p>
-                          <div className="mt-1 flex gap-1">
-                            {key.scopes.map((scope) => (
-                              <Badge
-                                key={scope}
-                                variant="outline"
-                                className="text-xs"
-                              >
-                                {scope}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                        <div className="text-right text-xs text-muted-foreground">
-                          <p>Created {key.createdAt}</p>
-                          <p>
-                            {key.lastUsedAt
-                              ? `Last used ${key.lastUsedAt}`
-                              : "Never used"}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No API keys yet. Create one for the Validator feedback
+                  ingestion API.
+                </p>
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Security */}
           <TabsContent value="security" className="space-y-6">
             <Card>
               <CardHeader>
@@ -264,7 +232,6 @@ export default function OrgSettingsPage() {
             </Card>
           </TabsContent>
 
-          {/* Billing */}
           <TabsContent value="billing" className="space-y-6">
             <Card>
               <CardHeader>
