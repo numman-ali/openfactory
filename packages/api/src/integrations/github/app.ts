@@ -48,20 +48,17 @@ export function loadGitHubAppConfig(): GitHubAppConfig | null {
  * Routes:
  *   GET  /api/integrations/github/install    - Redirect to GitHub App install
  *   GET  /api/integrations/github/callback   - OAuth callback after installation
- *   POST /api/integrations/github/webhooks   - Webhook receiver for push events
  */
 export async function registerGitHubRoutes(
   app: FastifyInstance,
   _config: GitHubAppConfig,
 ): Promise<void> {
-  // Installation redirect
   app.get("/api/integrations/github/install", async (_request, reply) => {
     // TODO: Build GitHub App installation URL with state parameter
     // Redirect to: https://github.com/apps/{app-name}/installations/new
     reply.code(501).send({ error: "Not implemented" });
   });
 
-  // OAuth callback after installation
   app.get("/api/integrations/github/callback", async (request, reply) => {
     // TODO: Handle installation callback
     // 1. Verify state parameter

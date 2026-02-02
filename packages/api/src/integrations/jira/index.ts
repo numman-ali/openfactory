@@ -4,7 +4,7 @@
  * Jira integration for OpenFactory.
  *
  * Creates Jira issues from Validator feedback with proper issue types,
- * components, labels, code references, and suggested fixes.
+ * components, labels, and priority mapping.
  */
 
 export interface JiraConfig {
@@ -39,21 +39,17 @@ export function loadJiraConfig(): JiraConfig | null {
   const apiToken = process.env.JIRA_API_TOKEN;
   const projectKey = process.env.JIRA_PROJECT_KEY;
 
-  if (!baseUrl || !email || !apiToken || !projectKey) {
-    return null;
-  }
-
+  if (!baseUrl || !email || !apiToken || !projectKey) return null;
   return { baseUrl, email, apiToken, projectKey };
 }
 
 /**
- * Create a Jira issue.
+ * Create a Jira issue via REST API v3.
  */
 export async function createJiraIssue(
   config: JiraConfig,
   input: JiraIssueInput,
 ): Promise<JiraIssueResult> {
-  const url = `${config.baseUrl}/rest/api/3/issue`;
   const auth = Buffer.from(`${config.email}:${config.apiToken}`).toString("base64");
 
   const body = {
@@ -79,7 +75,7 @@ export async function createJiraIssue(
     },
   };
 
-  const response = await fetch(url, {
+  const response = await fetch(`${config.baseUrl}/rest/api/3/issue`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${auth}`,
@@ -94,7 +90,7 @@ export async function createJiraIssue(
     throw new JiraApiError(response.status, errText);
   }
 
-  const data = (await response.json()) as { id: string; key: string; self: string };
+  const data = (await response.json()) as { id: string; key: string };
   return {
     id: data.id,
     key: data.key,

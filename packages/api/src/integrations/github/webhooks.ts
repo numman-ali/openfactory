@@ -11,10 +11,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
 
 /**
- * Verify the GitHub webhook signature.
- *
- * GitHub sends a HMAC-SHA256 signature in the X-Hub-Signature-256 header.
- * This must be verified before processing any webhook payload.
+ * Verify the GitHub webhook signature (HMAC-SHA256).
  */
 export function verifyWebhookSignature(
   payload: string,
@@ -48,16 +45,12 @@ export interface PushEvent {
     modified: string[];
     removed: string[];
   }>;
-  head_commit: {
-    id: string;
-  } | null;
-  installation?: {
-    id: number;
-  };
+  head_commit: { id: string } | null;
+  installation?: { id: number };
 }
 
 /**
- * Register the webhook endpoint.
+ * Register the webhook endpoint on Fastify.
  */
 export async function registerWebhookRoute(
   app: FastifyInstance,
@@ -65,45 +58,34 @@ export async function registerWebhookRoute(
 ): Promise<void> {
   app.post(
     "/api/integrations/github/webhooks",
-    {
-      config: { rawBody: true } as Record<string, unknown>,
-    },
+    { config: { rawBody: true } },
     async (request: FastifyRequest, reply: FastifyReply) => {
-      const signature = request.headers["x-hub-signature-256"] as
-        | string
-        | undefined;
+      const signature = request.headers["x-hub-signature-256"] as string | undefined;
       const event = request.headers["x-github-event"] as string | undefined;
       const rawBody =
         typeof request.body === "string"
           ? request.body
           : JSON.stringify(request.body);
 
-      // Verify signature
       if (!verifyWebhookSignature(rawBody, signature, webhookSecret)) {
         return reply.code(401).send({ error: "Invalid signature" });
       }
 
-      // Handle push events
       if (event === "push") {
-        const payload = request.body as PushEvent;
-        await handlePushEvent(payload);
+        await handlePushEvent(request.body as PushEvent);
         return reply.code(200).send({ status: "ok" });
       }
 
-      // Acknowledge other events
       return reply.code(200).send({ status: "ignored", event });
     },
   );
 }
 
-/**
- * Handle a push event by triggering reindexing for the affected repository.
- */
 async function handlePushEvent(payload: PushEvent): Promise<void> {
   // TODO: Implement push event handling (Backend team)
   // 1. Look up codebase_connection by installation_id and repository URL
   // 2. Check if the push is to the indexed branch (compare payload.ref)
-  // 3. Collect list of modified files from commits
+  // 3. Collect modified files from commits
   // 4. Enqueue BullMQ job for incremental reindexing
   // 5. Update codebase_connection.last_indexed_commit
   void payload;

@@ -28,84 +28,34 @@ export interface GitHubBranch {
   protected: boolean;
 }
 
-/**
- * GitHub repository client that uses installation access tokens.
- */
 export class GitHubClient {
   private baseUrl = "https://api.github.com";
 
   constructor(private installationToken: string) {}
 
-  /**
-   * List files in a repository directory.
-   */
-  async listFiles(
-    owner: string,
-    repo: string,
-    path: string = "",
-    ref?: string,
-  ): Promise<GitHubFile[]> {
-    const url = new URL(
-      `${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`,
-    );
+  async listFiles(owner: string, repo: string, path = "", ref?: string): Promise<GitHubFile[]> {
+    const url = new URL(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`);
     if (ref) url.searchParams.set("ref", ref);
-
-    const response = await fetch(url.toString(), {
-      headers: this.headers(),
-    });
-
-    if (!response.ok) {
-      throw new GitHubApiError(response.status, await response.text());
-    }
-
+    const response = await fetch(url.toString(), { headers: this.headers() });
+    if (!response.ok) throw new GitHubApiError(response.status, await response.text());
     const data = await response.json();
-    if (!Array.isArray(data)) {
-      return [data as GitHubFile];
-    }
-    return data as GitHubFile[];
+    return Array.isArray(data) ? (data as GitHubFile[]) : [data as GitHubFile];
   }
 
-  /**
-   * Read the contents of a file.
-   */
-  async readFile(
-    owner: string,
-    repo: string,
-    path: string,
-    ref?: string,
-  ): Promise<GitHubFileContent> {
-    const url = new URL(
-      `${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`,
-    );
+  async readFile(owner: string, repo: string, path: string, ref?: string): Promise<GitHubFileContent> {
+    const url = new URL(`${this.baseUrl}/repos/${owner}/${repo}/contents/${path}`);
     if (ref) url.searchParams.set("ref", ref);
-
-    const response = await fetch(url.toString(), {
-      headers: this.headers(),
-    });
-
-    if (!response.ok) {
-      throw new GitHubApiError(response.status, await response.text());
-    }
-
+    const response = await fetch(url.toString(), { headers: this.headers() });
+    if (!response.ok) throw new GitHubApiError(response.status, await response.text());
     return (await response.json()) as GitHubFileContent;
   }
 
-  /**
-   * List branches for a repository.
-   */
-  async listBranches(
-    owner: string,
-    repo: string,
-  ): Promise<GitHubBranch[]> {
+  async listBranches(owner: string, repo: string): Promise<GitHubBranch[]> {
     const response = await fetch(
       `${this.baseUrl}/repos/${owner}/${repo}/branches`,
       { headers: this.headers() },
     );
-
-    if (!response.ok) {
-      throw new GitHubApiError(response.status, await response.text());
-    }
-
+    if (!response.ok) throw new GitHubApiError(response.status, await response.text());
     return (await response.json()) as GitHubBranch[];
   }
 
