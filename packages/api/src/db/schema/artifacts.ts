@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { pgTable, uuid, text, bigint, timestamp, integer, index } from "drizzle-orm/pg-core";
-import { projects } from "./projects.js";
-import { users } from "./users.js";
+import { projects } from "./projects";
+import { users } from "./users";
 
 export const artifactFolders = pgTable("artifact_folders", {
   id: uuid().primaryKey().defaultRandom(),

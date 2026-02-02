@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { pgTable, uuid, text, jsonb, timestamp, integer, unique, index } from "drizzle-orm/pg-core";
-import { organizations } from "./organizations.js";
-import { users } from "./users.js";
+import { organizations } from "./organizations";
+import { users } from "./users";
 
 export const projects = pgTable("projects", {
   id: uuid().primaryKey().defaultRandom(),

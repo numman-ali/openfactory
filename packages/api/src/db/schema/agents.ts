@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 import { pgTable, uuid, text, jsonb, integer, timestamp, index } from "drizzle-orm/pg-core";
-import { projects, documents } from "./projects.js";
-import { users } from "./users.js";
+import { projects, documents } from "./projects";
+import { users } from "./users";
 
 export const agentConversations = pgTable("agent_conversations", {
   id: uuid().primaryKey().defaultRandom(),
