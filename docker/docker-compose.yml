@@ -88,6 +88,9 @@ services:
       LLM_MODEL: ${LLM_MODEL:-anthropic/claude-sonnet-4}
       LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
       LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-4096}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY:-}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-google}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-gemini-embedding-001}
       # GitHub App (optional, for codebase integration)
       GITHUB_APP_ID: ${GITHUB_APP_ID:-}
       GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}

@@ -8,6 +8,7 @@
 
 import { embedMany, type EmbeddingModel } from 'ai';
 import { createOpenAI } from '@ai-sdk/openai';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { getEmbeddingConfig } from '../agents/providers/index.js';
 import type { EmbeddingClient } from './index.js';
 
@@ -106,11 +107,22 @@ function sleep(ms: number): Promise<void> {
 
 /**
  * Create an embedding model from the embedding config.
- * Currently only OpenAI embeddings are supported.
+ * Supports OpenAI and Google (Gemini) embedding providers.
  */
 function createEmbeddingModel(config: { provider: string; model: string }): EmbeddingModel<string> {
-  const provider = createOpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-  });
-  return provider.embedding(config.model);
+  switch (config.provider) {
+    case 'google': {
+      const provider = createGoogleGenerativeAI({
+        apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+      });
+      return provider.textEmbeddingModel(config.model);
+    }
+    case 'openai':
+    default: {
+      const provider = createOpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+      return provider.embedding(config.model);
+    }
+  }
 }
