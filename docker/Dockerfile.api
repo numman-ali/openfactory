@@ -1,0 +1,84 @@
+# OpenFactory API Server - Multi-stage Docker Build
+# Builds the Fastify API server from the monorepo
+#
+# Build context must be the repository root:
+#   docker build -f docker/Dockerfile.api .
+
+# ---------------------------------------------------------------------------
+# Stage 1: Install dependencies
+# ---------------------------------------------------------------------------
+FROM node:22-alpine AS deps
+
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /app
+
+# Copy workspace configuration
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/api/package.json packages/api/
+COPY packages/shared/package.json packages/shared/
+
+# Install production dependencies only
+RUN pnpm install --frozen-lockfile --prod
+
+# ---------------------------------------------------------------------------
+# Stage 2: Build
+# ---------------------------------------------------------------------------
+FROM node:22-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /app
+
+# Copy workspace configuration
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
+COPY packages/api/package.json packages/api/
+COPY packages/shared/package.json packages/shared/
+
+# Install all dependencies (including devDependencies for build)
+RUN pnpm install --frozen-lockfile
+
+# Copy source code
+COPY packages/shared/ packages/shared/
+COPY packages/api/ packages/api/
+
+# Build shared package first, then API
+RUN pnpm --filter @repo/shared build && pnpm --filter @repo/api build
+
+# ---------------------------------------------------------------------------
+# Stage 3: Production image
+# ---------------------------------------------------------------------------
+FROM node:22-alpine AS runner
+
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+# Security: run as non-root
+RUN addgroup --system --gid 1001 openfactory && \
+    adduser --system --uid 1001 openfactory
+
+WORKDIR /app
+
+# Copy production node_modules from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/api/node_modules ./packages/api/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+
+# Copy built artifacts from builder stage
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/
+COPY --from=builder /app/packages/api/dist ./packages/api/dist
+COPY --from=builder /app/packages/api/package.json ./packages/api/
+
+# Copy workspace config for pnpm resolution
+COPY pnpm-workspace.yaml package.json ./
+
+USER openfactory
+
+WORKDIR /app/packages/api
+
+ENV NODE_ENV=production
+ENV PORT=3001
+
+EXPOSE 3001
+
+CMD ["node", "dist/index.js"]

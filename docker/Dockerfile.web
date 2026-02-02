@@ -1,0 +1,71 @@
+# OpenFactory Web Application - Multi-stage Docker Build
+# Builds the Next.js frontend from the monorepo
+#
+# Build context must be the repository root:
+#   docker build -f docker/Dockerfile.web .
+
+# ---------------------------------------------------------------------------
+# Stage 1: Install dependencies
+# ---------------------------------------------------------------------------
+FROM node:22-alpine AS deps
+
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /app
+
+# Copy workspace configuration
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+COPY packages/web/package.json packages/web/
+COPY packages/shared/package.json packages/shared/
+
+# Install all dependencies (Next.js needs devDeps for build)
+RUN pnpm install --frozen-lockfile
+
+# ---------------------------------------------------------------------------
+# Stage 2: Build
+# ---------------------------------------------------------------------------
+FROM node:22-alpine AS builder
+
+RUN corepack enable && corepack prepare pnpm@9 --activate
+
+WORKDIR /app
+
+# Copy workspace configuration and dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/packages/web/node_modules ./packages/web/node_modules
+COPY --from=deps /app/packages/shared/node_modules ./packages/shared/node_modules
+COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
+
+# Copy source code
+COPY packages/shared/ packages/shared/
+COPY packages/web/ packages/web/
+
+# Build shared package first, then web
+RUN pnpm --filter @repo/shared build && pnpm --filter @repo/web build
+
+# ---------------------------------------------------------------------------
+# Stage 3: Production image
+# ---------------------------------------------------------------------------
+FROM node:22-alpine AS runner
+
+# Security: run as non-root
+RUN addgroup --system --gid 1001 openfactory && \
+    adduser --system --uid 1001 openfactory
+
+WORKDIR /app
+
+# Copy Next.js standalone output (includes server + minimal node_modules)
+COPY --from=builder /app/packages/web/.next/standalone ./
+COPY --from=builder /app/packages/web/.next/static ./packages/web/.next/static
+COPY --from=builder /app/packages/web/public ./packages/web/public
+
+USER openfactory
+
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+EXPOSE 3000
+
+# Next.js standalone server entrypoint
+CMD ["node", "packages/web/server.js"]
